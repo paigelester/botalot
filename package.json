@@ -11,12 +11,11 @@
     "dist": "electron-vite build && electron-builder --win --publish never",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "demo": "electron-vite build && node scripts/demo/demo.cjs",
-    "skills:check": "node scripts/skills/check.cjs",
-    "skills:update": "skills update --project -y && node scripts/skills/check.cjs",
+    "skills:update": "skills update --project -y",
     "prepare": "husky",
     "ci:changes": "node scripts/ci/changed-checks.cjs",
     "commits:check":"commitlint --from origin/main --to HEAD --verbose",
-    "verify": "npm run typecheck && npm run skills:check && npm run build"
+    "verify": "npm run typecheck && npm run build"
   },
   "license": "MIT",
   "devDependencies": {

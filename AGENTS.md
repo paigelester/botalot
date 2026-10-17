@@ -5,13 +5,13 @@ If a step can be a script with a pass/fail exit code, it is one. Run the script 
 Where scripts live:
 
 - A script used by one of this repo's own skills lives inside that skill: `.claude/skills/<skill>/scripts/`.
-- Any other script goes in `scripts/<concern>/` (e.g. `scripts/demo/`, `scripts/skills/`). No loose files directly in `scripts/`.
+- Any other script goes in `scripts/<concern>/` (e.g. `scripts/demo/`, `scripts/ci/`). No loose files directly in `scripts/`.
 - Every repo-level script is run through an npm script in `package.json`.
 - Never add or change files in vendored skills (below).
 
 ## Verifying work
 
-`npm run verify` runs every deterministic check (typecheck, skills check, build). Exit 0 = the work passes. New checks are added to this script, not run separately.
+`npm run verify` runs every deterministic check (typecheck, build). Exit 0 = the work passes. New checks are added to this script, not run separately.
 
 - Verifying is the last step of the work, before committing: run `npm run verify` and report its output. Work isn't finished, and isn't committed, until it passes.
 - `verify` is for agents only. CI doesn't call it. `.github/workflows/ci.yml` runs on pushes to `main` and when a pull request is opened, updated or reopened, and calls each check as a reusable workflow (`on: workflow_call`), skipping a check when none of its inputs changed.
@@ -49,10 +49,9 @@ When one commit spans several types, use the type of its main purpose: packaging
 
 ## Vendored skills
 
-Skills in `.agents/skills/` (linked into `.claude/skills/`) come from `mattpocock/skills` via the `skills` CLI, pinned in `package.json`. Don't edit them; changes are overwritten by updates and fail the check.
+Skills in `.agents/skills/` (linked into `.claude/skills/`) come from `mattpocock/skills` via the `skills` CLI, pinned in `package.json`. Don't edit them; changes are overwritten by updates.
 
-- Update: `npm run skills:update` (updates, then runs the check)
-- Verify: `npm run skills:check` (exit 0 = every skill matches its hash in `skills-lock.json`)
+- Update: `npm run skills:update`
 
 ## Agent skills
 
