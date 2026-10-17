@@ -31,6 +31,21 @@ Every commit message follows [Conventional Commits](https://www.conventionalcomm
 - Verify: `npm run commits:check` (exit 0 = every commit not yet on `origin/main` passes).
 - CI re-checks pushes to `main` and pull requests (`.github/workflows/ci.yml`).
 
+### Choosing the type
+
+Pick the type by the change's effect on someone using Botalot, not by the files it touches. `feat` and `fix` are for **user-visible** changes only; everything else gets the type that names what it changes.
+
+| Type | Use when | Example |
+|---|---|---|
+| `feat` | Users of the app see something new | a new dialog, new dragon behaviour |
+| `fix` | Users of the app see a bug go away | a session that wouldn't spawn |
+| `build` | Packaging, bundling or dependencies change | electron-builder config, swapping node-pty |
+| `ci` | Only `.github/workflows/` changes | splitting CI into jobs |
+| `chore` | Repo upkeep that affects neither the app nor its build | vendoring skills, commit hooks |
+| `docs` | Only documentation changes, AGENTS.md included | this table |
+
+When one commit spans several types, use the type of its main purpose: packaging the exe is `build`, even though it touched `src/` and CI along the way.
+
 ## Vendored skills
 
 Skills in `.agents/skills/` (linked into `.claude/skills/`) come from `mattpocock/skills` via the `skills` CLI, pinned in `package.json`. Don't edit them; changes are overwritten by updates and fail the check.
