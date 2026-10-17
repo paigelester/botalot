@@ -8,7 +8,7 @@ const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
 
-const root = path.join(__dirname, '..')
+const root = path.join(__dirname, '..', '..')
 const demoRoot = path.join(os.tmpdir(), 'botalot-demo')
 const realmsDir = path.join(demoRoot, 'realms')
 const userData = path.join(demoRoot, 'userdata')
@@ -81,7 +81,7 @@ const dormant = {
 }
 fs.writeFileSync(path.join(userData, 'sessions.json'), JSON.stringify({ sessions: [dormant] }, null, 2))
 
-// Who flies where. scenario drives the fake agent in scripts/demo-claude.cjs.
+// Who flies where. scenario drives the fake agent in scripts/demo/demo-claude.cjs.
 const plan = [
   { projectId: 'demo-dragonforge', name: 'Ember', agent: 'claude', scenario: 'busy', prompt: 'Forge the cooling system' },
   { projectId: 'demo-dragonforge', name: 'Vyrax', agent: 'copilot', scenario: 'waiting', path: realms[0].holdings['142-forge-cooling'] },
@@ -96,7 +96,7 @@ const plan = [
 const planPath = path.join(userData, 'demo-plan.json')
 fs.writeFileSync(planPath, JSON.stringify(plan, null, 2))
 
-const fake = path.join(root, 'scripts', 'demo-claude.cjs')
+const fake = path.join(root, 'scripts', 'demo', 'demo-claude.cjs')
 const env = { ...process.env, DRAGON_DEMO: '1', DRAGON_DEMO_PLAN: planPath, DRAGON_CLAUDE_BIN: fake, DRAGON_COPILOT_BIN: fake }
 for (const arg of process.argv.slice(2)) {
   const m = /^--shot=(.+)$/.exec(arg)

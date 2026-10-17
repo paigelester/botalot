@@ -145,7 +145,7 @@ app.whenReady().then(async () => {
 /** DRAGON_DEMO=1 fills the kingdom with fake dragons; DRAGON_SCREENSHOT=<png> captures the window and quits. */
 async function runDevHelpers(): Promise<void> {
   if (process.env.DRAGON_DEMO_PLAN) {
-    // A scripted kingdom (scripts/demo.cjs): fake realms and a cast of dragons across castles and holdings.
+    // A scripted kingdom (scripts/demo/demo.cjs): fake realms and a cast of dragons across castles and holdings.
     type Planned = { projectId: string; name: string; agent: 'claude' | 'copilot'; scenario: string; path?: string; prompt?: string }
     const plan = JSON.parse(require('fs').readFileSync(process.env.DRAGON_DEMO_PLAN, 'utf8')) as Planned[]
     for (const d of plan) {

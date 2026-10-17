@@ -89,4 +89,4 @@ binaries, `DRAGON_SCREENSHOT=path.png` captures the window after a delay and qui
     src/renderer   React UI; scene/ is the PixiJS kingdom, panel/ is the terminal side panel
     src/shared     Types shared across processes
     hooks/         notify.js, the Claude Code hook forwarder
-    scripts/       demo-claude.cjs, a fake claude for demos and tests
+    scripts/       grouped by concern: demo/ (scripted kingdom + fake claude), skills/ (vendored-skill check)

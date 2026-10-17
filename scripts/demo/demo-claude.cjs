@@ -5,7 +5,7 @@ const { spawn } = require('child_process')
 const path = require('path')
 
 const scenario = process.env.DRAGON_DEMO_SCENARIO || 'quest'
-const hook = path.join(__dirname, '..', 'hooks', 'notify.js')
+const hook = path.join(__dirname, '..', '..', 'hooks', 'notify.js')
 
 function send(payload) {
   return new Promise((resolve) => {

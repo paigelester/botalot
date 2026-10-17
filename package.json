@@ -9,7 +9,9 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "demo": "electron-vite build && node scripts/demo.cjs"
+    "demo": "electron-vite build && node scripts/demo/demo.cjs",
+    "skills:check": "node scripts/skills/check.cjs",
+    "skills:update": "skills update --project -y && node scripts/skills/check.cjs"
   },
   "license": "MIT",
   "devDependencies": {
@@ -19,6 +21,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "electron": "^44.7.2",
     "electron-vite": "^6.0.0",
+    "skills": "1.7.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.4"
   },
