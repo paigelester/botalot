@@ -1,0 +1,51 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import type { DragonApi, JiraSite, Project, Session, SpawnRequest } from '@shared/types'
+
+function subscribe<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
+  const handler = (_e: Electron.IpcRendererEvent, ...args: unknown[]) => cb(...(args as T))
+  ipcRenderer.on(channel, handler)
+  return () => ipcRenderer.removeListener(channel, handler)
+}
+
+const api: DragonApi = {
+  projects: {
+    list: () => ipcRenderer.invoke('projects:list'),
+    listAll: () => ipcRenderer.invoke('projects:listAll'),
+    add: () => ipcRenderer.invoke('projects:add'),
+    update: (id, patch) => ipcRenderer.invoke('projects:update', id, patch),
+    remove: (id) => ipcRenderer.invoke('projects:remove', id),
+    worktrees: (id) => ipcRenderer.invoke('projects:worktrees', id),
+    remoteBase: (id) => ipcRenderer.invoke('projects:remoteBase', id),
+    issues: (id, search) => ipcRenderer.invoke('projects:issues', id, search),
+    onChanged: (cb) => subscribe<[Project[]]>('projects:changed', cb)
+  },
+  sessions: {
+    list: () => ipcRenderer.invoke('sessions:list'),
+    spawn: (req: SpawnRequest) => ipcRenderer.invoke('sessions:spawn', req),
+    kill: (id) => ipcRenderer.invoke('sessions:kill', id),
+    dismiss: (id) => ipcRenderer.invoke('sessions:dismiss', id),
+    wake: (id) => ipcRenderer.invoke('sessions:wake', id),
+    write: (id, data) => ipcRenderer.send('sessions:write', id, data),
+    resize: (id, cols, rows) => ipcRenderer.send('sessions:resize', id, cols, rows),
+    scrollback: (id) => ipcRenderer.invoke('sessions:scrollback', id),
+    refreshGit: (id) => ipcRenderer.invoke('sessions:refreshGit', id),
+    onUpdate: (cb) => subscribe<[Session]>('session:update', cb),
+    onData: (cb) => subscribe<[string, string]>('session:data', cb),
+    onRemoved: (cb) => subscribe<[string]>('session:removed', cb),
+    onFocus: (cb) => subscribe<[string]>('session:focus', cb)
+  },
+  names: {
+    random: () => ipcRenderer.invoke('names:random')
+  },
+  agents: {
+    list: () => ipcRenderer.invoke('agents:list')
+  },
+  jira: {
+    sites: (): Promise<JiraSite[]> => ipcRenderer.invoke('jira:sites'),
+    saveSite: (site, email, token) => ipcRenderer.invoke('jira:saveSite', site, email, token),
+    removeSite: (site) => ipcRenderer.invoke('jira:removeSite', site),
+    test: (site) => ipcRenderer.invoke('jira:test', site)
+  }
+}
+
+contextBridge.exposeInMainWorld('dragon', api)

@@ -1,0 +1,53 @@
+{
+  "frameWidth": 64,
+  "frameHeight": 64,
+  "scale": 1.25,
+  "facing": "right",
+  "animations": {
+    "fly": {
+      "files": [
+        "fly_1.png",
+        "fly_2.png",
+        "fly_3.png",
+        "fly_4.png",
+        "fly_5.png",
+        "fly_6.png",
+        "fly_7.png",
+        "fly_8.png"
+      ],
+      "fps": 12
+    },
+    "roar": {
+      "files": [
+        "roar_0.png",
+        "roar_1.png",
+        "roar_2.png",
+        "roar_3.png",
+        "roar_4.png",
+        "roar_5.png",
+        "roar_6.png"
+      ],
+      "fps": 8
+    },
+    "idle": {
+      "files": [
+        "idle_0.png",
+        "idle_1.png",
+        "idle_2.png",
+        "idle_3.png",
+        "idle_4.png"
+      ],
+      "fps": 4
+    },
+    "sleep": {
+      "files": [
+        "sleep_0.png",
+        "sleep_1.png",
+        "sleep_2.png",
+        "sleep_3.png",
+        "sleep_4.png"
+      ],
+      "fps": 3
+    }
+  }
+}
