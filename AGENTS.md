@@ -11,10 +11,17 @@ Where scripts live:
 
 ## Verifying work
 
-`npm run verify` runs every deterministic check (typecheck, skills check). Exit 0 = the work passes. New checks are added to this script, not run separately.
+`npm run verify` runs every deterministic check (typecheck, skills check, build). Exit 0 = the work passes. New checks are added to this script, not run separately.
 
 - Verifying is the last step of the work, before committing: run `npm run verify` and report its output. Work isn't finished, and isn't committed, until it passes.
-- CI runs it again on pushes to `main` and when a pull request is opened, updated or reopened (`.github/workflows/ci.yml`).
+- `verify` is for agents only. CI doesn't call it; each check runs as its own job in `.github/workflows/ci.yml`, on pushes to `main` and when a pull request is opened, updated or reopened. A new check added to `verify` also needs a matching CI job.
+- The Node major version is pinned in `.nvmrc`, and CI reads it from there.
+
+## Packaging
+
+`npm run dist` builds and packages a portable Windows exe into `dist/` (config: `electron-builder.yml`). CI's `build` job uploads it as the `botalot-windows` artifact.
+
+- Shells started by VS Code set `ELECTRON_RUN_AS_NODE=1`, which makes any Electron exe exit at once. Clear it before launching the app from such a shell.
 
 ## Commits
 

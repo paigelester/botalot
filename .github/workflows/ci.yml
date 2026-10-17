@@ -1,4 +1,5 @@
-# Re-runs the local git hooks' checks on GitHub, since hooks can be skipped with --no-verify.
+# Each check runs as its own job so they run in parallel and fail independently.
+# `npm run verify` is for agents working locally; CI doesn't call it.
 name: ci
 
 on:
@@ -8,17 +9,46 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  verify:
+  typecheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
       # --ignore-scripts skips the Electron download and native builds; the checks don't need them.
       - run: npm ci --ignore-scripts
-      - run: npm run verify
+      - run: npm run typecheck
+
+  skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run skills:check
+
+  # Builds and packages the portable Windows exe; download it from the run's artifacts.
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # electron-builder downloads its own Electron, and node-pty ships prebuilt binaries.
+      - run: npm ci --ignore-scripts
+      - run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: botalot-windows
+          path: dist/*.exe
+          if-no-files-found: error
 
   commitlint:
     runs-on: ubuntu-latest
@@ -28,7 +58,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Lint pull request commits

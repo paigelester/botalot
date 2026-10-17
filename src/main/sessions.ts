@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events'
 import { randomUUID } from 'crypto'
 import { existsSync } from 'fs'
-import * as pty from '@lydell/node-pty'
+import * as pty from 'node-pty'
 import type { AgentKind, Project, Session, SessionState, SpawnRequest } from '@shared/types'
 import { addWorktree, currentBranch, gitInfo, listWorktrees } from './git'
 import { randomName } from './names'

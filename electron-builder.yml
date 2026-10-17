@@ -1,0 +1,21 @@
+# Packages the electron-vite output (out/) into a distributable app. Run with `npm run dist`.
+appId: com.paigelester.botalot
+productName: Botalot
+directories:
+  output: dist
+# node-pty ships Microsoft's prebuilt N-API binaries, which load in Electron as-is.
+# Rebuilding would compile from source instead and need a C++ toolchain.
+npmRebuild: false
+files:
+  - out/**
+  - hooks/**
+  - package.json
+# Agent CLIs run hooks/notify.js with their own node, which can't read inside app.asar.
+asarUnpack:
+  - hooks/**
+win:
+  target:
+    - target: portable
+      arch: x64
+portable:
+  artifactName: ${productName}-${version}-portable.exe

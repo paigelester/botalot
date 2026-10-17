@@ -8,13 +8,14 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder --win --publish never",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "demo": "electron-vite build && node scripts/demo/demo.cjs",
     "skills:check": "node scripts/skills/check.cjs",
     "skills:update": "skills update --project -y && node scripts/skills/check.cjs",
     "prepare": "husky",
     "commits:check": "commitlint --from origin/main --to HEAD --verbose",
-    "verify": "npm run typecheck && npm run skills:check"
+    "verify": "npm run typecheck && npm run skills:check && npm run build"
   },
   "license": "MIT",
   "devDependencies": {
@@ -24,24 +25,25 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "electron": "^44.7.2",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
     "husky": "9.1.7",
+    "pixi.js": "^8.22.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "skills": "1.7.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.4"
-  },
-  "dependencies": {
-    "@lydell/node-pty": "^1.2.0-beta.15",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0",
-    "pixi.js": "^8.22.0",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
   },
   "commitlint": {
     "extends": [
       "@commitlint/config-conventional"
     ]
+  },
+  "dependencies": {
+    "node-pty": "1.1.0"
   }
 }

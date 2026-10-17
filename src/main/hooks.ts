@@ -55,9 +55,14 @@ export class HookServer extends EventEmitter {
   }
 }
 
-/** Location of the hook forwarder script shipped with the app. */
+/**
+ * Location of the hook forwarder script shipped with the app. Agent CLIs run it
+ * with their own node, which can't read inside app.asar, so packaged builds
+ * unpack it (see electron-builder.yml).
+ */
 export function hookScriptPath(): string {
-  return join(app.getAppPath(), 'hooks', 'notify.js').replace(/\\/g, '/')
+  const root = app.getAppPath().replace(/app\.asar$/, 'app.asar.unpacked')
+  return join(root, 'hooks', 'notify.js').replace(/\\/g, '/')
 }
 
 /**
