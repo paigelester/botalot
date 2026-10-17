@@ -14,12 +14,13 @@ Where scripts live:
 `npm run verify` runs every deterministic check (typecheck, skills check, build). Exit 0 = the work passes. New checks are added to this script, not run separately.
 
 - Verifying is the last step of the work, before committing: run `npm run verify` and report its output. Work isn't finished, and isn't committed, until it passes.
-- `verify` is for agents only. CI doesn't call it; each check runs as its own job in `.github/workflows/ci.yml`, on pushes to `main` and when a pull request is opened, updated or reopened. A new check added to `verify` also needs a matching CI job.
+- `verify` is for agents only. CI doesn't call it. `.github/workflows/ci.yml` runs on pushes to `main` and when a pull request is opened, updated or reopened, and calls each check as a reusable workflow (`on: workflow_call`), skipping a check when none of its inputs changed.
+- A new check added to `verify` also needs its own reusable workflow called from `ci.yml`, and its inputs listed in `scripts/ci/changed-checks.cjs`. Preview which checks a change runs: `npm run ci:changes -- <base> <head>`.
 - The Node major version is pinned in `.nvmrc`, and CI reads it from there.
 
 ## Packaging
 
-`npm run dist` builds and packages a portable Windows exe into `dist/` (config: `electron-builder.yml`). CI's `build` job uploads it as the `botalot-windows` artifact.
+`npm run dist` builds and packages a portable Windows exe into `dist/` (config: `electron-builder.yml`). The `build` workflow uploads it as the `botalot-windows` artifact.
 
 - Shells started by VS Code set `ELECTRON_RUN_AS_NODE=1`, which makes any Electron exe exit at once. Clear it before launching the app from such a shell.
 
@@ -29,7 +30,7 @@ Every commit message follows [Conventional Commits](https://www.conventionalcomm
 
 - Enforced on commit by the husky `commit-msg` hook (installed by `npm install`). Never bypass it with `--no-verify`.
 - Verify: `npm run commits:check` (exit 0 = every commit not yet on `origin/main` passes).
-- CI re-checks pushes to `main` and pull requests (`.github/workflows/ci.yml`).
+- CI re-checks every push to `main` and every pull request (`.github/workflows/commitlint.yml`, called from `ci.yml`).
 
 ### Choosing the type
 

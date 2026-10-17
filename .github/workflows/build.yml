@@ -1,0 +1,23 @@
+# Called by ci.yml. Builds and packages the portable Windows exe; download it from the run's artifacts.
+name: build
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # electron-builder downloads its own Electron, and node-pty ships prebuilt binaries.
+      - run: npm ci --ignore-scripts
+      - run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: botalot-windows
+          path: dist/*.exe
+          if-no-files-found: error

@@ -1,0 +1,18 @@
+# Called by ci.yml.
+name: typecheck
+
+on:
+  workflow_call:
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # --ignore-scripts skips the Electron download and native builds; the check doesn't need them.
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck

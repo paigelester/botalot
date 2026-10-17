@@ -1,4 +1,5 @@
-# Each check runs as its own job so they run in parallel and fail independently.
+# The one CI entry point. Each check is a reusable workflow called as a job here, and is
+# skipped when none of its inputs changed (see scripts/ci/changed-checks.cjs).
 # `npm run verify` is for agents working locally; CI doesn't call it.
 name: ci
 
@@ -9,49 +10,12 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  typecheck:
+  changes:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      # --ignore-scripts skips the Electron download and native builds; the checks don't need them.
-      - run: npm ci --ignore-scripts
-      - run: npm run typecheck
-
-  skills:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - run: npm run skills:check
-
-  # Builds and packages the portable Windows exe; download it from the run's artifacts.
-  build:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      # electron-builder downloads its own Electron, and node-pty ships prebuilt binaries.
-      - run: npm ci --ignore-scripts
-      - run: npm run dist
-      - uses: actions/upload-artifact@v4
-        with:
-          name: botalot-windows
-          path: dist/*.exe
-          if-no-files-found: error
-
-  commitlint:
-    runs-on: ubuntu-latest
+    outputs:
+      typecheck: ${{ steps.checks.outputs.typecheck }}
+      skills: ${{ steps.checks.outputs.skills }}
+      build: ${{ steps.checks.outputs.build }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,11 +23,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - name: Lint pull request commits
-        if: github.event_name == 'pull_request'
-        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
-      - name: Lint commits pushed to main
-        if: github.event_name == 'push'
-        run: npx commitlint --from ${{ github.event.before }} --to ${{ github.sha }} --verbose
+      - id: checks
+        run: npm run ci:changes -- ${{ github.event.pull_request.base.sha || github.event.before }} ${{ github.sha }}
+
+  # Each check is skipped only when `changes` succeeded and said it isn't needed; if `changes`
+  # fails, its outputs are empty and the check runs. `!cancelled()` stops a failed `changes`
+  # from skipping it.
+  typecheck:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.typecheck != 'false' }}
+    uses: ./.github/workflows/typecheck.yml
+
+  skills:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.skills != 'false' }}
+    uses: ./.github/workflows/skills.yml
+
+  build:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.build != 'false' }}
+    uses: ./.github/workflows/build.yml
+
+  # Every push and pull request brings commits to lint, so this always runs.
+  commitlint:
+    uses: ./.github/workflows/commitlint.yml
