@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       typecheck: ${{ steps.checks.outputs.typecheck }}
+      test: ${{ steps.checks.outputs.test }}
       build: ${{ steps.checks.outputs.build }}
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +33,11 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.typecheck != 'false' }}
     uses: ./.github/workflows/typecheck.yml
+
+  test:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.test != 'false' }}
+    uses: ./.github/workflows/test.yml
 
   build:
     needs: changes
