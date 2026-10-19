@@ -67,6 +67,8 @@ export interface Session {
    * (working with no activity, or waiting too long), never reported by the agent. Clears on new activity.
    */
   stuck?: string
+  /** The pull request for this dragon's branch, when its realm is on GitHub and one exists. */
+  pr?: PullRequestInfo
   /** Most recent hook event name, for debugging and the status strip. */
   lastEvent?: string
   /** The agent's own session id (Claude: from the SessionStart hook; Copilot: set by the app). Needed to resume. */
@@ -87,6 +89,17 @@ export interface Session {
   startedAt: number
   exitCode?: number
   git?: GitInfo
+}
+
+/** Combined result of a pull request's checks. none = no checks reported. */
+export type CiStatus = 'pass' | 'pending' | 'fail' | 'none'
+
+export interface PullRequestInfo {
+  number: number
+  url: string
+  state: 'OPEN' | 'MERGED' | 'CLOSED'
+  draft: boolean
+  ci: CiStatus
 }
 
 export type SpawnTarget =

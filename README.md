@@ -62,6 +62,13 @@ or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot logi
   opening them. The waiting count also shows as a badge on the taskbar icon, and
   when a dragon starts waiting while the window is not focused, an OS notification
   says so; clicking it opens that dragon.
+- **Pull requests.** In a realm whose tracker is GitHub, every holding with a
+  dragon shows its branch's pull request under the signpost: `PR #142` with a CI
+  dot (green passed, gold running, red failed, grey no checks), or `draft`,
+  `merged` or `closed`. Click it to open the PR in your browser. The app asks
+  `gh pr view <branch>` once a minute, one holding at a time, and again when a
+  dragon on that branch goes idle. Without `gh`, or logged out, holdings simply
+  show no sign.
 - **Stuck dragons.** The app flags a dragon as stuck when it has been working with
   no hook event for 10 minutes (no terminal output, for agents without hooks), or
   waiting on you for more than 15. It gets a red ring, the panel says why, and it

@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, Text } from 'pixi.js'
-import { UNCLAIMED_REALM, type Project, type Session } from '@shared/types'
+import { UNCLAIMED_REALM, type CiStatus, type Project, type PullRequestInfo, type Session } from '@shared/types'
 import { Dragon, type Perch } from './Dragon'
 import { loadDragonSprites, type DragonSpriteSet } from './sprites'
 
@@ -42,6 +42,7 @@ const HOLDING_OFFSETS: [number, number][] = [
 export interface SceneCallbacks {
   onSelectDragon(id: string | null): void
   onTapCastle(projectId: string): void
+  onOpenUrl(url: string): void
 }
 
 interface Castle {
@@ -56,6 +57,10 @@ interface Holding {
   cwd: string
   container: Container
   label: Text
+  /** The pull request sign under the signpost; empty when the branch has no PR. */
+  banner: Container
+  /** The PR the banner shows, compared before redrawing. */
+  pr?: PullRequestInfo
   x: number
   y: number
 }
@@ -273,7 +278,17 @@ export class KingdomScene {
     path.moveTo(0, 8).lineTo(castle.x - x, castle.y - y + 24).stroke({ width: 3, color: 0x8a6b45, alpha: 0.6 })
     container.addChildAt(path, 0)
     this.land.addChild(container)
-    h = { cwd, container, label, x, y }
+    const banner = new Container()
+    banner.position.set(0, 28)
+    banner.eventMode = 'static'
+    banner.cursor = 'pointer'
+    container.addChild(banner)
+    h = { cwd, container, label, banner, x, y }
+    const holding = h
+    banner.on('pointertap', (e) => {
+      e.stopPropagation()
+      if (holding.pr) this.cb.onOpenUrl(holding.pr.url)
+    })
     castle.holdings.set(key, h)
     this.sortLand()
     return h
@@ -319,6 +334,7 @@ export class KingdomScene {
     const seen = new Set<string>()
     const perchGroups = new Map<string, { perch: Perch; dragons: Dragon[] }>()
     const tintOf = new Map(this.projects.map((p) => [p.id, p.tint]))
+    const prOf = new Map<Holding, PullRequestInfo>()
 
     tintOf.set(UNCLAIMED_REALM, CAMP_TINT)
     if (this.sessions.some((s) => s.projectId === UNCLAIMED_REALM)) this.ensureCamp()
@@ -347,6 +363,7 @@ export class KingdomScene {
       // The camp has no holdings: every unclaimed dragon perches at the fire.
       if (s.isWorktree && castle.projectId !== UNCLAIMED_REALM) {
         const h = this.ensureHolding(castle, s.cwd, s.branch || 'worktree', tintOf.get(s.projectId) ?? 0xffffff)
+        if (s.pr) prOf.set(h, s.pr)
         key = `h:${h.cwd.toLowerCase()}`
         perch = { x: h.x, y: h.y - 34, orbitX: h.x, orbitY: h.y - 80 }
       } else if (castle.projectId === UNCLAIMED_REALM) {
@@ -368,6 +385,8 @@ export class KingdomScene {
         this.dragons.delete(id)
       }
     }
+
+    for (const castle of this.castles.values()) for (const h of castle.holdings.values()) setBanner(h, prOf.get(h))
 
     // Spread dragons that share a perch so they do not overlap.
     for (const { perch, dragons } of perchGroups.values()) {
@@ -440,6 +459,30 @@ function campGraphic(): Graphics {
   g.poly([17, 3, 25, -16, 33, 3]).fill(0xff8a2a)
   g.poly([21, 3, 25, -8, 29, 3]).fill(0xffd34a)
   return g
+}
+
+const CI_COLOUR: Record<CiStatus, number> = { pass: 0x7bc96f, pending: 0xffd26a, fail: 0xe05a3a, none: 0x9a9aa8 }
+
+/** Draw a holding's PR sign: "PR #142" with a CI dot, or merged / closed / draft. Redrawn only when the PR changes. */
+function setBanner(h: Holding, pr: PullRequestInfo | undefined): void {
+  if (JSON.stringify(h.pr) === JSON.stringify(pr)) return
+  h.pr = pr
+  for (const c of h.banner.removeChildren()) c.destroy({ children: true })
+  if (!pr) return
+  const open = pr.state === 'OPEN'
+  const word = pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'closed' : pr.draft ? 'draft' : 'PR'
+  const text = new Text({
+    text: `${word} #${pr.number}`,
+    style: { fontFamily: 'Segoe UI, sans-serif', fontSize: 10, fontWeight: 'bold', fill: pr.state === 'MERGED' ? 0xd2b8ff : 0xf6edd6 }
+  })
+  text.resolution = 2
+  const dot = open ? 8 : 0
+  const w = text.width + 10 + dot
+  const g = new Graphics()
+  g.roundRect(-w / 2, 0, w, 15, 4).fill({ color: pr.state === 'MERGED' ? 0x3b2a5c : 0x1a1024, alpha: 0.85 }).stroke({ width: 1, color: open ? CI_COLOUR[pr.ci] : 0x5a5068 })
+  if (open) g.circle(-w / 2 + 8, 7.5, 3.5).fill(CI_COLOUR[pr.ci])
+  text.position.set(-w / 2 + 5 + dot, 1)
+  h.banner.addChild(g, text)
 }
 
 function holdingGraphic(tint: number): Graphics {

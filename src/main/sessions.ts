@@ -4,7 +4,7 @@ import { execFile } from 'child_process'
 import { existsSync } from 'fs'
 import { homedir } from 'os'
 import * as pty from 'node-pty'
-import { UNCLAIMED_REALM, type AgentKind, type Project, type Session, type SessionState, type SpawnRequest } from '@shared/types'
+import { UNCLAIMED_REALM, type AgentKind, type Project, type PullRequestInfo, type Session, type SessionState, type SpawnRequest } from '@shared/types'
 import { addWorktree, currentBranch, gitInfo, listWorktrees } from './git'
 import { randomName } from './names'
 import type { HookEvent } from './hooks'
@@ -387,6 +387,14 @@ export class SessionManager extends EventEmitter {
       this.publish(l)
     }
     return { ...l.session }
+  }
+
+  /** Attach the pull request for the dragon's branch (from PrWatcher). Not recorded: it is looked up again on launch. */
+  setPr(id: string, pr: PullRequestInfo | undefined): void {
+    const l = this.live.get(id)
+    if (!l) return
+    l.session.pr = pr
+    this.publish(l)
   }
 
   write(id: string, data: string): void {

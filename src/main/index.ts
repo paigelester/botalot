@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
-import type { SpawnRequest } from '@shared/types'
+import type { PullRequestInfo, SpawnRequest } from '@shared/types'
 import { ProjectStore } from './projects'
 import { HookServer, removeHookPortFile, writeHookPortFile } from './hooks'
 import { ensureClaudeBackgroundHooks, ensureClaudeHooks, listAgents } from './agents'
@@ -8,6 +8,7 @@ import { SessionManager } from './sessions'
 import { RegistryWatcher } from './registry'
 import { BackgroundWatcher } from './background'
 import { Herald } from './herald'
+import { PrWatcher } from './prWatcher'
 import { listWorktrees, remoteDefaultBranch } from './git'
 import { listGitHubIssues } from './github'
 import { listJiraIssues, testJira } from './jira'
@@ -29,6 +30,7 @@ let projects: ProjectStore
 const hooks = new HookServer()
 const registry = new RegistryWatcher()
 const background = new BackgroundWatcher()
+let prs: PrWatcher | null = null
 
 function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
@@ -153,6 +155,15 @@ app.whenReady().then(async () => {
   sessions.on('removed', (id) => send('session:removed', id))
   sessions.on('update', (s) => herald.observe(s))
   sessions.on('removed', (id) => herald.forget(id))
+  prs = new PrWatcher(
+    () => sessions.list(),
+    (id) => projects.get(id),
+    (id, pr) => sessions.setPr(id, pr)
+  )
+  sessions.on('update', (s) => prs?.observe(s))
+  sessions.on('removed', (id) => prs?.forget(id))
+  // The demo's realms are fictional: no GitHub to ask.
+  if (!process.env.DRAGON_DEMO && !process.env.DRAGON_DEMO_PLAN) prs.start()
   sessions.on('data', (id, data) => send('session:data', id, data))
   projects.on('changed', (list) => send('projects:changed', list))
 
@@ -169,7 +180,8 @@ app.whenReady().then(async () => {
 async function runDevHelpers(): Promise<void> {
   if (process.env.DRAGON_DEMO_PLAN) {
     // A scripted kingdom (scripts/demo/demo.cjs): fake realms and a cast of dragons across castles and holdings.
-    type Planned = { projectId: string; name: string; agent: 'claude' | 'copilot'; scenario: string; path?: string; prompt?: string }
+    // pr stands in for what the PR watcher would find on GitHub; the demo has no GitHub to ask.
+    type Planned = { projectId: string; name: string; agent: 'claude' | 'copilot'; scenario: string; path?: string; prompt?: string; pr?: PullRequestInfo }
     const plan = JSON.parse(require('fs').readFileSync(process.env.DRAGON_DEMO_PLAN, 'utf8')) as Planned[]
     for (const d of plan) {
       const p = projects.get(d.projectId)
@@ -177,7 +189,8 @@ async function runDevHelpers(): Promise<void> {
       process.env.DRAGON_DEMO_SCENARIO = d.scenario
       const target = d.path ? { kind: 'existing' as const, path: d.path } : { kind: 'main' as const }
       try {
-        await sessions.spawn({ projectId: p.id, agent: d.agent, target, prompt: d.prompt, name: d.name }, p)
+        const s = await sessions.spawn({ projectId: p.id, agent: d.agent, target, prompt: d.prompt, name: d.name }, p)
+        if (d.pr) sessions.setPr(s.id, d.pr)
       } catch (err) {
         console.warn('[demo] could not summon', d.name, (err as Error).message)
       }
@@ -239,6 +252,7 @@ app.on('before-quit', () => {
   sessions?.killAll()
   registry.stop()
   background.stop()
+  prs?.stop()
   hooks.stop()
   removeHookPortFile()
 })

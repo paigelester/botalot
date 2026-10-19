@@ -22,7 +22,9 @@ export function Kingdom({ projects, sessions, selectedId, onSelectDragon, onTapC
     if (!host.current) return
     const s = new KingdomScene({
       onSelectDragon: (id) => latest.current.onSelectDragon(id),
-      onTapCastle: (id) => latest.current.onTapCastle(id)
+      onTapCastle: (id) => latest.current.onTapCastle(id),
+      // The main process opens window.open targets in the default browser.
+      onOpenUrl: (url) => void window.open(url)
     })
     scene.current = s
     ready.current = false

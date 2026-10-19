@@ -1,5 +1,5 @@
 import { execFile } from 'child_process'
-import type { Issue, IssueList } from '@shared/types'
+import type { CiStatus, Issue, IssueList, PullRequestInfo } from '@shared/types'
 
 const LIMIT = 100
 
@@ -55,5 +55,45 @@ export async function listGitHubIssues(cwd: string, search?: string): Promise<Is
     else if (/known GitHub host|no git remotes|not a git repository|could not determine/i.test(msg)) friendly = 'This realm has no GitHub remote.'
     else if (/auth login|not logged in/i.test(msg)) friendly = 'GitHub CLI is not logged in. Run: gh auth login'
     return { tracker: 'github', issues: [], error: friendly }
+  }
+}
+
+/** One entry of `gh pr view --json statusCheckRollup`: a CheckRun (status, conclusion) or a StatusContext (state). */
+interface RollupEntry {
+  __typename?: string
+  status?: string
+  conclusion?: string
+  state?: string
+}
+
+const FAILED = new Set(['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE'])
+
+/** Any failure is a fail; otherwise anything unfinished is pending; otherwise pass. Skipped and neutral checks count as passed. */
+export function ciStatus(rollup: RollupEntry[] | null | undefined): CiStatus {
+  if (!rollup || rollup.length === 0) return 'none'
+  let pending = false
+  for (const c of rollup) {
+    const result = (c.conclusion || c.state || '').toUpperCase()
+    if (FAILED.has(result)) return 'fail'
+    const finished = c.__typename === 'StatusContext' ? result !== 'PENDING' && result !== 'EXPECTED' && result !== '' : (c.status || '').toUpperCase() === 'COMPLETED'
+    if (!finished) pending = true
+  }
+  return pending ? 'pending' : 'pass'
+}
+
+/** The pull request whose head is `branch` in the repo at cwd, or null when there is none or gh can't tell. Never throws. */
+export async function pullRequestFor(cwd: string, branch: string): Promise<PullRequestInfo | null> {
+  try {
+    // The branch name goes to gh as an argument, so no shell (branch names may hold & or |), and never as an option.
+    if (!branch || branch.startsWith('-')) return null
+    const out = await new Promise<string>((resolve, reject) =>
+      execFile('gh', ['pr', 'view', branch, '--json', 'number,url,state,isDraft,statusCheckRollup'], { cwd, windowsHide: true, timeout: 30_000 }, (err, stdout) =>
+        err ? reject(err) : resolve(stdout.toString())
+      )
+    )
+    const raw = JSON.parse(out) as { number: number; url: string; state: PullRequestInfo['state']; isDraft: boolean; statusCheckRollup?: RollupEntry[] }
+    return { number: raw.number, url: raw.url, state: raw.state, draft: !!raw.isDraft, ci: ciStatus(raw.statusCheckRollup) }
+  } catch {
+    return null
   }
 }

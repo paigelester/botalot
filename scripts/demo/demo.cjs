@@ -86,12 +86,12 @@ fs.writeFileSync(path.join(userData, 'sessions.json'), JSON.stringify({ sessions
 // Who flies where. scenario drives the fake agent in scripts/demo/demo-claude.cjs.
 const plan = [
   { projectId: 'demo-dragonforge', name: 'Ember', agent: 'claude', scenario: 'busy', prompt: 'Forge the cooling system' },
-  { projectId: 'demo-dragonforge', name: 'Vyrax', agent: 'copilot', scenario: 'waiting', path: realms[0].holdings['142-forge-cooling'] },
-  { projectId: 'demo-dragonforge', name: 'Sylthra', agent: 'claude', scenario: 'idle', path: realms[0].holdings['draft/ember'] },
+  { projectId: 'demo-dragonforge', name: 'Vyrax', agent: 'copilot', scenario: 'waiting', path: realms[0].holdings['142-forge-cooling'], pr: { number: 142, url: 'https://github.com/example/dragonforge/pull/142', state: 'OPEN', draft: false, ci: 'fail' } },
+  { projectId: 'demo-dragonforge', name: 'Sylthra', agent: 'claude', scenario: 'idle', path: realms[0].holdings['draft/ember'], pr: { number: 151, url: 'https://github.com/example/dragonforge/pull/151', state: 'OPEN', draft: true, ci: 'pass' } },
   { projectId: 'demo-skyharbour', name: 'Nimbus', agent: 'claude', scenario: 'idle' },
   { projectId: 'demo-skyharbour', name: 'Tidewing', agent: 'copilot', scenario: 'busy', path: realms[1].holdings['SKY-87-dock-scheduler'], prompt: 'Schedule the docks' },
   { projectId: 'demo-ravenmoor', name: 'Umbra', agent: 'claude', scenario: 'hang', prompt: 'Deliver the ravens' },
-  { projectId: 'demo-ravenmoor', name: 'Morrow', agent: 'claude', scenario: 'dead', path: realms[2].holdings['203-raven-post'] },
+  { projectId: 'demo-ravenmoor', name: 'Morrow', agent: 'claude', scenario: 'dead', path: realms[2].holdings['203-raven-post'], pr: { number: 203, url: 'https://github.com/example/ravenmoor/pull/203', state: 'MERGED', draft: false, ci: 'pass' } },
   { projectId: 'demo-thornfield', name: 'Thornmaw', agent: 'claude', scenario: 'waiting', prompt: 'Trim the hedges' },
   { projectId: 'demo-thornfield', name: 'Kaelith', agent: 'copilot', scenario: 'busy', prompt: 'Run the test suite' }
 ]
