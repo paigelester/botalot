@@ -4,6 +4,7 @@
 // testable with fakes: it imports only shared code, with explicit .ts extensions for Node's test runner.
 import type { Issue, PatrolMark, Project, PullRequestInfo, Session, SpawnRequest } from '../shared/types.ts'
 import { issueBranch, patrolPrompt } from '../shared/issues.ts'
+import { DEFAULT_PATROL_ALLOW } from '../shared/patrol.ts'
 
 /** The label lifecycle of a patrolled issue. The same names on GitHub and Jira. */
 export const LABEL = { ready: 'ready-for-agent', working: 'agent-working', done: 'agent-done', human: 'ready-for-human' } as const
@@ -103,7 +104,7 @@ export class Patrol {
     let dragon: Session
     try {
       dragon = await this.deps.summon(
-        { projectId: p.id, agent: 'claude', target: { kind: 'new', branch: issueBranch(issue) }, prompt: patrolPrompt(issue, kind), background: true },
+        { projectId: p.id, agent: 'claude', target: { kind: 'new', branch: issueBranch(issue) }, prompt: patrolPrompt(issue, kind), background: true, allow: p.patrol?.allow ?? DEFAULT_PATROL_ALLOW },
         p
       )
     } catch (err) {

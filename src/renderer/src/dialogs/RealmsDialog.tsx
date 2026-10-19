@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { JiraSite, Project, Tracker } from '@shared/types'
+import { DEFAULT_PATROL_ALLOW, parseAllowList } from '@shared/patrol'
 import { api } from '../api'
 
 const TINTS = [0xe05a3a, 0x3a8fe0, 0x4fb563, 0xd8a53b, 0x9c5be0, 0x2fb8b0, 0xe0629c, 0xa0b23a, 0xc46f2f, 0x6c7be0]
@@ -117,7 +118,7 @@ export function RealmsDialog({ onClose }: Props) {
                       <input
                         type="checkbox"
                         checked={!!p.patrol?.enabled}
-                        onChange={(e) => void patch(p.id, { patrol: { enabled: e.target.checked, max: p.patrol?.max ?? 1 } })}
+                        onChange={(e) => void patch(p.id, { patrol: { max: 1, ...p.patrol, enabled: e.target.checked } })}
                       />
                       <span>
                         <b>Patrol</b> — pick up <code>ready-for-agent</code> issues on its own
@@ -132,11 +133,14 @@ export function RealmsDialog({ onClose }: Props) {
                         value={p.patrol?.max ?? 1}
                         disabled={!p.patrol?.enabled}
                         onChange={(e) =>
-                          void patch(p.id, { patrol: { enabled: !!p.patrol?.enabled, max: Math.min(10, Math.max(1, Math.round(Number(e.target.value) || 1))) } })
+                          void patch(p.id, { patrol: { enabled: false, ...p.patrol, max: Math.min(10, Math.max(1, Math.round(Number(e.target.value) || 1))) } })
                         }
                       />
                       dragon{(p.patrol?.max ?? 1) === 1 ? '' : 's'} at once
                     </span>
+                    {p.patrol?.enabled ? (
+                      <AllowList allow={p.patrol.allow ?? DEFAULT_PATROL_ALLOW} onSave={(allow) => void patch(p.id, { patrol: { enabled: true, max: 1, ...p.patrol, allow } })} />
+                    ) : null}
                   </div>
                 ) : null}
                 {t.kind === 'jira' ? (
@@ -204,6 +208,27 @@ export function RealmsDialog({ onClose }: Props) {
 }
 
 /** Jira credentials, one entry per site. Tokens are encrypted by the OS and never shown again. */
+/**
+ * The shell commands a realm's patrol dragons may run without asking, one per line. Saved when the box loses
+ * focus, so a half-typed line is never saved. File edits are always allowed; anything else asks you.
+ */
+function AllowList({ allow, onSave }: { allow: string[]; onSave(allow: string[]): void }) {
+  const [text, setText] = useState(allow.join('\n'))
+  useEffect(() => setText(allow.join('\n')), [allow])
+  return (
+    <label className="realm-patrol-allow">
+      <span>
+        Commands its dragons run without asking: one per line, <code>*</code> matches anything. File edits are always allowed; anything
+        else waits for you.
+      </span>
+      <textarea rows={Math.min(10, Math.max(3, allow.length + 1))} value={text} onChange={(e) => setText(e.target.value)} onBlur={() => onSave(parseAllowList(text))} spellCheck={false} />
+      <button type="button" className="ghost small" onClick={() => onSave(DEFAULT_PATROL_ALLOW)}>
+        Reset to defaults
+      </button>
+    </label>
+  )
+}
+
 function JiraSites({ sites, onChanged }: { sites: JiraSite[]; onChanged(sites: JiraSite[]): void }) {
   const [open, setOpen] = useState(false)
   const [site, setSite] = useState('')

@@ -754,3 +754,18 @@ button.pill:not(.pill-alert) {
   border-style: dashed;
   text-decoration: none;
 }
+.realm-patrol-allow {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+.realm-patrol-allow textarea {
+  display: block;
+  width: 100%;
+  margin: 4px 0;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+}
+.realm-patrol-allow > button {
+  align-self: flex-start;
+}

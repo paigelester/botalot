@@ -72,6 +72,11 @@ or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot logi
   N patrol dragons per realm at once (default 1). Works with GitHub (labels via
   `gh`) and Jira (labels via its API); pull requests are found with `gh` either
   way. Attempt counts live in `patrol.json` in the config folder.
+  Patrol dragons work unattended, so they accept file edits and run the realm's
+  allowed commands without asking (by default the checks, `git add/commit/push`
+  and `gh` for issues and PRs; edit the list under the realm in Realms). Any other
+  command waits for you and shows up as awaiting you. The issue text becomes the
+  dragon's instructions, so label only issues you have read `ready-for-agent`.
 - **Pull requests.** In a realm whose tracker is GitHub, every holding with a
   dragon shows its branch's pull request under the signpost: `PR #142` with a CI
   dot (green passed, gold running, red failed, grey no checks), or `draft`,

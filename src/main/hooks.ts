@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'http'
 import { EventEmitter } from 'events'
-import { rmSync, writeFileSync } from 'fs'
+import { readFileSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import { configDir } from './config'
@@ -88,6 +88,18 @@ function writeSettingsFile(events: string[], name: string, extraArgs: string): s
     hooks[ev] = [/PreToolUse|PostToolUse|PermissionRequest/.test(ev) ? { matcher: '', hooks: [hook] } : { hooks: [hook] }]
   }
   const settings = { hooks }
+  const path = join(configDir(), name)
+  writeFileSync(path, JSON.stringify(settings, null, 2), 'utf8')
+  return path
+}
+
+/**
+ * A copy of a settings file with permission rules added, for dragons that work unattended. Written as
+ * `name` in the config folder and rewritten on every call, so the latest rules apply to the next dragon.
+ */
+export function withPermissions(basePath: string, name: string, permissions: object): string {
+  const settings = JSON.parse(readFileSync(basePath, 'utf8')) as Record<string, unknown>
+  settings.permissions = permissions
   const path = join(configDir(), name)
   writeFileSync(path, JSON.stringify(settings, null, 2), 'utf8')
   return path

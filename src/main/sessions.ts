@@ -14,6 +14,8 @@ import { normalizePath } from './projects'
 import { AGENTS, childEnv, resolveOnPath } from './agents'
 import { loadSessionRecords, saveSessionRecords, type SessionRecord } from './sessionStore'
 import { stuckThresholds, type StuckThresholds } from './config'
+import { withPermissions } from './hooks'
+import { patrolPermissions } from '@shared/patrol'
 
 const SCROLLBACK_LIMIT = 400_000 // characters kept per session for replay when a panel opens
 const HOOK_AUTHORITY_MS = 4000 // after a hook event, ignore the registry for this long
@@ -226,7 +228,11 @@ export class SessionManager extends EventEmitter {
     }
     if (req.background) {
       // Dispatched before the dragon exists: if Claude Code refuses (untrusted folder, say), nothing is left behind.
-      const out = await runClaude(binary, ['--bg', '--name', name, '--settings', this.backgroundHookSettingsPath, prompt!], cwd)
+      // An unattended dragon (patrol) gets its own settings: the background hooks plus its permission rules.
+      const settings = req.allow
+        ? withPermissions(this.backgroundHookSettingsPath, `dragon-hooks-patrol-${project.id}.json`, patrolPermissions(req.allow))
+        : this.backgroundHookSettingsPath
+      const out = await runClaude(binary, ['--bg', '--name', name, '--settings', settings, prompt!], cwd)
       const m = /backgrounded\s*·\s*([0-9a-f]{6,})/i.exec(plain(out))
       if (!m) throw new Error('Claude Code did not start a background session: ' + (plain(out).trim().split(/\r?\n/)[0] || 'no output'))
       session.backgroundId = m[1]

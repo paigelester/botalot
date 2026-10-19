@@ -41,6 +41,8 @@ export interface PatrolSettings {
   enabled: boolean
   /** Most patrol dragons alive at once in this realm. */
   max: number
+  /** Shell commands its dragons run without asking; DEFAULT_PATROL_ALLOW when absent. */
+  allow?: string[]
 }
 
 /** What a patrol dragon is working on, and how its issue was settled once it was. */
@@ -177,6 +179,8 @@ export interface SpawnRequest {
   name?: string
   /** Claude only: run as a background session (`claude --bg`) that keeps going after the app quits. Needs a prompt. */
   background?: boolean
+  /** Background only: let it work unattended. File edits are accepted, and these shell commands run without asking. */
+  allow?: string[]
 }
 
 export interface DragonApi {

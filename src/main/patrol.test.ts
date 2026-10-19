@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import type { Issue, PatrolMark, Project, PullRequestInfo, Session, SpawnRequest } from '../shared/types.ts'
+import type { Issue, PatrolMark, PatrolSettings, Project, PullRequestInfo, Session, SpawnRequest } from '../shared/types.ts'
 import { LABEL, Patrol, type PatrolTracker } from './patrol.ts'
+import { DEFAULT_PATROL_ALLOW } from '../shared/patrol.ts'
 
 /** A tracker in memory: issues with labels, and every comment written. */
 class FakeTracker implements PatrolTracker {
@@ -34,7 +35,7 @@ class FakeTracker implements PatrolTracker {
 
 const issue = (key: string, createdAt: number, labels = [LABEL.ready as string]) => ({ key, title: `Issue ${key}`, body: 'Do it.', labels, assignees: [], updatedAt: '', createdAt })
 
-function realm(patrol = { enabled: true, max: 1 }): Project {
+function realm(patrol: PatrolSettings = { enabled: true, max: 1 }): Project {
   return { id: 'r1', path: '/repo', name: 'Repo', tint: 0, worktreeLayout: 'sibling', hidden: false, isGit: true, source: 'manual', tracker: { kind: 'github' }, patrol }
 }
 
@@ -85,12 +86,19 @@ test('takes the oldest ready issue: relabels it, summons a background dragon on 
   assert.equal(t.summons.length, 1)
   const req = t.summons[0]
   assert.equal(req.background, true)
+  assert.deepEqual(req.allow, DEFAULT_PATROL_ALLOW)
   assert.equal(req.agent, 'claude')
   assert.deepEqual(req.target, { kind: 'new', branch: '4-issue-4' })
   assert.match(req.prompt ?? '', /GitHub issue #4/)
   assert.match(req.prompt ?? '', /gh pr create --draft/)
   assert.deepEqual(t.tracker.find('4').labels, [LABEL.working])
   assert.deepEqual(t.dragons[0].patrol, { issueKey: '4', issueUrl: undefined })
+})
+
+test("uses the realm's own allow list when it has one", async () => {
+  const t = setup([issue('1', 1)], realm({ enabled: true, max: 1, allow: ['dotnet test'] }))
+  await t.patrol.tick()
+  assert.deepEqual(t.summons[0].allow, ['dotnet test'])
 })
 
 test('keeps to the realm cap', async () => {
