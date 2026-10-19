@@ -195,4 +195,8 @@ export interface DragonApi {
   agents: {
     list(): Promise<AgentInfo[]>
   }
+  app: {
+    /** Show the waiting count on the taskbar icon. `png` is the badge image as a data URL; count 0 clears it. */
+    setBadge(count: number, png: string | null): void
+  }
 }

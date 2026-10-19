@@ -55,6 +55,13 @@ or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot logi
   keeps the records, so on the next launch the dragons return faded and dormant.
   Wake one and the agent resumes its own session in the same folder, with the
   same conversation (`claude --resume` / `copilot --resume`). Bury forgets it.
+- **Awaiting you.** The "awaiting you" pill in the top bar (or Ctrl+Shift+A) opens
+  a list of every waiting dragon, longest-waiting first, with what it needs. Type a
+  quick reply and press Enter to send it to the dragon's terminal, or Open it.
+  Background dragons have no terminal of the app's own, so they are answered by
+  opening them. The waiting count also shows as a badge on the taskbar icon, and
+  when a dragon starts waiting while the window is not focused, an OS notification
+  says so; clicking it opens that dragon.
 - **Dragon states**: flying with fire = working; landed with a gold ring and
   exclamation = waiting on you (permission prompt or question); curled asleep =
   idle; faded and curled = dormant (from an earlier run, wake to resume); grey

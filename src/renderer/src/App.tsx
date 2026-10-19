@@ -3,6 +3,7 @@ import type { Project, Session } from '@shared/types'
 import { api } from './api'
 import { Kingdom } from './scene/Kingdom'
 import { SessionPanel } from './panel/SessionPanel'
+import { WaitingPanel } from './panel/WaitingPanel'
 import { SummonDialog } from './dialogs/SummonDialog'
 import { RealmsDialog } from './dialogs/RealmsDialog'
 
@@ -13,6 +14,7 @@ export function App() {
   const [wide, setWide] = useState(false)
   const [summon, setSummon] = useState<{ projectId: string | null } | null>(null)
   const [realms, setRealms] = useState(false)
+  const [waitingOpen, setWaitingOpen] = useState(false)
 
   useEffect(() => {
     void api.projects.list().then(setProjects)
@@ -46,13 +48,17 @@ export function App() {
       if (e.ctrlKey && e.key === '\\') {
         e.preventDefault()
         setWide((w) => !w)
+      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        setWaitingOpen((o) => !o)
       } else if (e.key === 'Escape' && !summon && !realms) {
-        setSelectedId(null)
+        if (waitingOpen) setWaitingOpen(false)
+        else setSelectedId(null)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [summon, realms])
+  }, [summon, realms, waitingOpen])
 
   const sessionList = useMemo(() => [...sessions.values()], [sessions])
   const selected = selectedId ? sessions.get(selectedId) : undefined
@@ -62,6 +68,7 @@ export function App() {
 
   useEffect(() => {
     document.title = waiting > 0 ? `(${waiting}) Botalot` : 'Botalot'
+    api.app.setBadge(waiting, waiting > 0 ? drawBadge(waiting) : null)
   }, [waiting])
 
   const onTapCastle = useCallback((projectId: string) => setSummon({ projectId }), [])
@@ -74,7 +81,13 @@ export function App() {
         </h1>
         <div className="counts">
           <span className="pill pill-working">{working} questing</span>
-          <span className={'pill pill-waiting' + (waiting > 0 ? ' pill-alert' : '')}>{waiting} awaiting you</span>
+          <button
+            className={'pill pill-waiting' + (waiting > 0 ? ' pill-alert' : '') + (waitingOpen ? ' pill-open' : '')}
+            onClick={() => setWaitingOpen((o) => !o)}
+            title="Show who awaits you (Ctrl+Shift+A)"
+          >
+            {waiting} awaiting you
+          </button>
           <span className="pill">
             {sessionList.length} dragons{dormant ? ', ' + dormant + ' dormant' : ''}
           </span>
@@ -98,6 +111,9 @@ export function App() {
               Open realms
             </button>
           </div>
+        ) : null}
+        {waitingOpen ? (
+          <WaitingPanel sessions={sessionList} projects={projects} onOpen={(id) => setSelectedId(id)} onClose={() => setWaitingOpen(false)} />
         ) : null}
         {selected ? (
           <SessionPanel
@@ -139,4 +155,27 @@ export function App() {
       ) : null}
     </div>
   )
+}
+
+/** The taskbar overlay badge: a gold disc with the waiting count, as a PNG data URL. */
+function drawBadge(count: number): string | null {
+  const size = 32
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  ctx.fillStyle = '#ffd26a'
+  ctx.beginPath()
+  ctx.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.lineWidth = 2
+  ctx.strokeStyle = '#2a1a00'
+  ctx.stroke()
+  ctx.fillStyle = '#2a1a00'
+  ctx.font = `bold ${count > 9 ? 16 : 20}px "Segoe UI", sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(count > 99 ? '99+' : String(count), size / 2, size / 2 + 1)
+  return canvas.toDataURL('image/png')
 }

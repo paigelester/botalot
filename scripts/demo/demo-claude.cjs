@@ -21,9 +21,21 @@ process.stdout.write('\x1b[1;33mDemo dragon\x1b[0m standing in for claude. Args:
 process.stdout.write('Type and it echoes. Ctrl+C exits.\r\n\r\n')
 process.stdin.setRawMode?.(true)
 process.stdin.resume()
+// Set while the waiting scenario asks for permission: Enter answers it, as it would a real prompt.
+let awaitingAnswer = false
 process.stdin.on('data', (d) => {
   if (d[0] === 3) process.exit(0)
   process.stdout.write(d)
+  if (awaitingAnswer && d.includes(13)) {
+    awaitingAnswer = false
+    void (async () => {
+      process.stdout.write('\r\nAnswered. Running npm test...\r\n')
+      await send({ hook_event_name: 'PostToolUse', tool_name: 'Bash' })
+      await sleep(1500)
+      await send({ hook_event_name: 'Stop' })
+      process.stdout.write('Quest complete. Resting.\r\n')
+    })()
+  }
 })
 
 ;(async () => {
@@ -65,6 +77,7 @@ process.stdin.on('data', (d) => {
     await sleep(500)
     await send({ hook_event_name: 'Notification', notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' })
     process.stdout.write('\r\n\x1b[33mAllow Bash(npm test)? (y/n)\x1b[0m ')
+    awaitingAnswer = true
     return
   }
   if (scenario === 'dead') {

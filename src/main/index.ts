@@ -7,6 +7,7 @@ import { ensureClaudeBackgroundHooks, ensureClaudeHooks, listAgents } from './ag
 import { SessionManager } from './sessions'
 import { RegistryWatcher } from './registry'
 import { BackgroundWatcher } from './background'
+import { Herald } from './herald'
 import { listWorktrees, remoteDefaultBranch } from './git'
 import { listGitHubIssues } from './github'
 import { listJiraIssues, testJira } from './jira'
@@ -19,6 +20,10 @@ if (process.env.DRAGON_DEMO && !process.argv.some((a) => a.startsWith('--user-da
 }
 
 let win: BrowserWindow | null = null
+const herald = new Herald(
+  () => win,
+  (id) => send('session:focus', id)
+)
 let sessions: SessionManager
 let projects: ProjectStore
 const hooks = new HookServer()
@@ -120,7 +125,11 @@ function registerIpc(): void {
 
   ipcMain.handle('names:random', () => sessions.randomName())
   ipcMain.handle('agents:list', () => listAgents())
+  ipcMain.on('app:badge', (_e, count: number, png: string | null) => herald.setBadge(count, png))
 }
+
+// Windows only shows toast notifications for an app with an AppUserModelID; match electron-builder's appId.
+if (process.platform === 'win32') app.setAppUserModelId('com.paigelester.botalot')
 
 app.whenReady().then(async () => {
   const port = await hooks.start()
@@ -142,6 +151,8 @@ app.whenReady().then(async () => {
 
   sessions.on('update', (s) => send('session:update', s))
   sessions.on('removed', (id) => send('session:removed', id))
+  sessions.on('update', (s) => herald.observe(s))
+  sessions.on('removed', (id) => herald.forget(id))
   sessions.on('data', (id, data) => send('session:data', id, data))
   projects.on('changed', (list) => send('projects:changed', list))
 

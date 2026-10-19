@@ -42,6 +42,9 @@ const api: DragonApi = {
   agents: {
     list: () => ipcRenderer.invoke('agents:list')
   },
+  app: {
+    setBadge: (count, png) => ipcRenderer.send('app:badge', count, png)
+  },
   jira: {
     sites: (): Promise<JiraSite[]> => ipcRenderer.invoke('jira:sites'),
     saveSite: (site, email, token) => ipcRenderer.invoke('jira:saveSite', site, email, token),

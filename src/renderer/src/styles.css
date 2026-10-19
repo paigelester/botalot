@@ -635,3 +635,87 @@ select:focus {
 .badge-dormant {
   color: #9aa3c7;
 }
+
+/* Awaiting you: the list of waiting dragons, dropped down over the map */
+button.pill {
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+button.pill:not(.pill-alert) {
+  background: transparent;
+}
+.pill-open {
+  box-shadow: 0 0 0 2px var(--gold-dim);
+}
+.waiting-panel {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  z-index: 20;
+  width: min(440px, calc(100% - 28px));
+  max-height: calc(100% - 20px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+.waiting-panel > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.waiting-panel h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--gold);
+}
+.waiting-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+.waiting-empty {
+  margin: 0;
+  padding: 18px 12px;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+.waiting-row {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.waiting-row:last-child {
+  border-bottom: none;
+}
+.waiting-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.waiting-for {
+  color: var(--waiting);
+  font-variant-numeric: tabular-nums;
+}
+.waiting-why {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.waiting-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.waiting-actions input {
+  flex: 1;
+  min-width: 0;
+}
