@@ -58,6 +58,13 @@ process.stdin.on('data', (d) => {
       await send({ hook_event_name: 'PostToolUse', tool_name: tool })
     }
   }
+  if (scenario === 'hang') {
+    // Starts a tool and never hears back: the app should flag it as stuck.
+    await send({ hook_event_name: 'UserPromptSubmit', prompt: 'demo' })
+    await send({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'deliver --all' } })
+    process.stdout.write('\x1b[2m[Bash]\x1b[0m deliver --all ...\r\n')
+    return
+  }
   if (scenario === 'rename') {
     // Pretend the draft conversation finished: file the issue and rename the branch, as a real dragon would.
     await send({ hook_event_name: 'UserPromptSubmit', prompt: 'go' })

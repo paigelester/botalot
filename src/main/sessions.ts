@@ -13,16 +13,20 @@ import type { BackgroundEntry } from './background'
 import { normalizePath } from './projects'
 import { AGENTS, childEnv, resolveOnPath } from './agents'
 import { loadSessionRecords, saveSessionRecords, type SessionRecord } from './sessionStore'
+import { stuckThresholds, type StuckThresholds } from './config'
 
 const SCROLLBACK_LIMIT = 400_000 // characters kept per session for replay when a panel opens
 const HOOK_AUTHORITY_MS = 4000 // after a hook event, ignore the registry for this long
 const OUTPUT_IDLE_MS = 3000 // without hooks, this much terminal silence after output means idle
+const STUCK_CHECK_MS = 10_000 // how often quiet dragons are re-examined; hooks and state changes check at once
 
 interface LiveSession {
   session: Session
   proc: pty.IPty | null
   scrollback: string
   lastHookAt: number
+  /** Last terminal output; the activity signal for dragons that never send hooks. */
+  lastOutputAt?: number
   gitTimer: NodeJS.Timeout | null
   idleTimer: NodeJS.Timeout | null
 }
@@ -45,6 +49,35 @@ export class SessionManager extends EventEmitter {
     private backgroundHookSettingsPath: string
   ) {
     super()
+    this.stuckTimer = setInterval(() => {
+      this.thresholds = stuckThresholds()
+      for (const l of this.live.values()) if (this.updateStuck(l)) this.emit('update', { ...l.session })
+    }, STUCK_CHECK_MS)
+  }
+
+  private thresholds: StuckThresholds = stuckThresholds()
+  private stuckTimer: NodeJS.Timeout
+
+  /**
+   * Work out whether a dragon looks stuck: working with no activity, or waiting on you, for too long.
+   * Stuck is a reason string beside the state, never a state of its own. Returns true when it changed.
+   */
+  private updateStuck(l: LiveSession): boolean {
+    const s = l.session
+    const now = Date.now()
+    const min = 60_000
+    let reason: string | undefined
+    if (s.state === 'waiting' && now - s.stateSince > this.thresholds.waitingMinutes * min) {
+      reason = `Waiting on you for ${duration(now - s.stateSince)}`
+    } else if (s.state === 'working' && !s.wild) {
+      // Wild dragons send no hooks and have no terminal here, so there is nothing to measure activity by.
+      const activity = l.lastHookAt || l.lastOutputAt || 0
+      const quietSince = Math.max(activity, s.stateSince)
+      if (now - quietSince > this.thresholds.workingQuietMinutes * min) reason = `No activity for ${duration(now - quietSince)}`
+    }
+    if (reason === s.stuck) return false
+    s.stuck = reason
+    return true
   }
 
   // ------------------------------------------------------------------ records
@@ -130,6 +163,7 @@ export class SessionManager extends EventEmitter {
   }
 
   private publish(l: LiveSession): void {
+    this.updateStuck(l)
     this.emit('update', { ...l.session })
   }
 
@@ -284,6 +318,7 @@ export class SessionManager extends EventEmitter {
     session.pid = l.proc.pid
 
     l.proc.onData((data) => {
+      l.lastOutputAt = Date.now()
       l.scrollback += data
       if (l.scrollback.length > SCROLLBACK_LIMIT) l.scrollback = l.scrollback.slice(-SCROLLBACK_LIMIT)
       this.emit('data', session.id, data)
@@ -427,6 +462,7 @@ export class SessionManager extends EventEmitter {
 
   /** On quit: stop the processes but keep every record, so the dragons come back dormant. */
   killAll(): void {
+    clearInterval(this.stuckTimer)
     this.persist()
     for (const l of this.live.values()) {
       if (l.proc) {
@@ -748,6 +784,11 @@ export class SessionManager extends EventEmitter {
       /* already gone */
     }
   }
+}
+
+/** "45s" under a minute, "12 min" after. Whole units, so a stuck reason only changes once a minute. */
+function duration(ms: number): string {
+  return ms < 60_000 ? `${Math.floor(ms / 1000)}s` : `${Math.floor(ms / 60_000)} min`
 }
 
 /** The realm whose folder holds `cwd`. The deepest match wins, so nested realms claim their own sessions. */

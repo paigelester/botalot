@@ -125,6 +125,7 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
             </>
           )}
         </div>
+        {session.stuck ? <div className="attention attention-stuck">Looks stuck: {session.stuck}</div> : null}
         {session.attention ? <div className={'attention attention-' + session.state}>{session.attention}</div> : null}
         {wakeError ? <div className="error">{wakeError}</div> : null}
       </header>

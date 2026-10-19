@@ -719,3 +719,14 @@ button.pill:not(.pill-alert) {
   flex: 1;
   min-width: 0;
 }
+
+/* Stuck: the app's own judgement from timing, in red beside the agent's state */
+.attention-stuck {
+  background: #3d1a14;
+  color: #ff9a80;
+  margin-bottom: 4px;
+}
+.waiting-stuck {
+  color: #ff9a80;
+  font-size: 12px;
+}

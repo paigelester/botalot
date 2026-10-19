@@ -62,6 +62,11 @@ export interface Session {
   stateSince: number
   /** Short human text explaining why the dragon wants attention. */
   attention?: string
+  /**
+   * Set while the dragon looks stuck: why, e.g. "No activity for 12 min". Derived by the app from timing
+   * (working with no activity, or waiting too long), never reported by the agent. Clears on new activity.
+   */
+  stuck?: string
   /** Most recent hook event name, for debugging and the status strip. */
   lastEvent?: string
   /** The agent's own session id (Claude: from the SessionStart hook; Copilot: set by the app). Needed to resume. */

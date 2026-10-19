@@ -62,7 +62,9 @@ const realms = [
 // Config for the demo kingdom: only these realms, no discovery.
 const config = {
   projects: realms.map((r) => ({ id: r.id, path: r.repo, name: r.name, tint: r.tint, worktreeLayout: 'sibling', hidden: false, isGit: true, source: 'manual', tracker: r.tracker })),
-  ignored: []
+  ignored: [],
+  // Short enough that stuck dragons show up within a minute instead of after ten.
+  stuck: { workingQuietMinutes: 0.25, waitingMinutes: 0.5 }
 }
 fs.writeFileSync(path.join(userData, 'config.json'), JSON.stringify(config, null, 2))
 
@@ -88,7 +90,7 @@ const plan = [
   { projectId: 'demo-dragonforge', name: 'Sylthra', agent: 'claude', scenario: 'idle', path: realms[0].holdings['draft/ember'] },
   { projectId: 'demo-skyharbour', name: 'Nimbus', agent: 'claude', scenario: 'idle' },
   { projectId: 'demo-skyharbour', name: 'Tidewing', agent: 'copilot', scenario: 'busy', path: realms[1].holdings['SKY-87-dock-scheduler'], prompt: 'Schedule the docks' },
-  { projectId: 'demo-ravenmoor', name: 'Umbra', agent: 'claude', scenario: 'busy', prompt: 'Deliver the ravens' },
+  { projectId: 'demo-ravenmoor', name: 'Umbra', agent: 'claude', scenario: 'hang', prompt: 'Deliver the ravens' },
   { projectId: 'demo-ravenmoor', name: 'Morrow', agent: 'claude', scenario: 'dead', path: realms[2].holdings['203-raven-post'] },
   { projectId: 'demo-thornfield', name: 'Thornmaw', agent: 'claude', scenario: 'waiting', prompt: 'Trim the hedges' },
   { projectId: 'demo-thornfield', name: 'Kaelith', agent: 'copilot', scenario: 'busy', prompt: 'Run the test suite' }

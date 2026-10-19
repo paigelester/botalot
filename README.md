@@ -62,6 +62,12 @@ or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot logi
   opening them. The waiting count also shows as a badge on the taskbar icon, and
   when a dragon starts waiting while the window is not focused, an OS notification
   says so; clicking it opens that dragon.
+- **Stuck dragons.** The app flags a dragon as stuck when it has been working with
+  no hook event for 10 minutes (no terminal output, for agents without hooks), or
+  waiting on you for more than 15. It gets a red ring, the panel says why, and it
+  moves to the top of the awaiting-you list. It clears on the next sign of life.
+  Change the limits in `config.json` in the app's config folder:
+  `"stuck": { "workingQuietMinutes": 10, "waitingMinutes": 15 }`.
 - **Dragon states**: flying with fire = working; landed with a gold ring and
   exclamation = waiting on you (permission prompt or question); curled asleep =
   idle; faded and curled = dormant (from an earlier run, wake to resume); grey

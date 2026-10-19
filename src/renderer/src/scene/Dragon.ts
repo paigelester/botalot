@@ -12,11 +12,14 @@ export interface Perch {
 }
 
 const GREY = 0x6e6e78
+const STUCK_RED = 0xe05a3a
 
 /** One session rendered as a dragon. Handles its own state animation each tick. */
 export class Dragon extends Container {
   readonly id: string
   state: SessionState = 'idle'
+  /** Looks stuck (see Session.stuck): drawn with a red ring. */
+  stuck = false
   realmTint = 0xffffff
   perch: Perch = { x: 0, y: 0, orbitX: 0, orbitY: 0 }
   selected = false
@@ -84,6 +87,7 @@ export class Dragon extends Container {
 
   apply(session: Session): void {
     this.state = session.state
+    this.stuck = !!session.stuck
     this.nameLabel.text = session.agent === 'copilot' ? session.name + ' ✦' : session.name
     const colour = session.state === 'dead' ? GREY : session.state === 'dormant' ? mix(this.realmTint, 0x5a6080, 0.6) : this.realmTint
     this.placeholder?.setTint(colour)
@@ -139,7 +143,7 @@ export class Dragon extends Container {
       // Pulsing gold ring and exclamation marker: the loudest thing in the kingdom.
       const pulse = (Math.sin(t * 4) + 1) / 2
       const r = this.sprite ? 36 : 26
-      this.ring.circle(0, 12, r + pulse * 10).stroke({ width: 3, color: 0xffd26a, alpha: 0.9 - pulse * 0.6 })
+      this.ring.circle(0, 12, r + pulse * 10).stroke({ width: 3, color: this.stuck ? STUCK_RED : 0xffd26a, alpha: 0.9 - pulse * 0.6 })
       this.marker
         .roundRect(-6, -58 - pulse * 4 - (this.sprite ? 8 : 0), 12, 20, 3)
         .fill(0xffd26a)
@@ -181,6 +185,12 @@ export class Dragon extends Container {
       this.grave.roundRect(gx, -4, 14, 20, 4).fill(0x8d8d9a).rect(gx + 5, 2, 4, 10).fill(0x55555f).rect(gx + 2, 5, 10, 3).fill(0x55555f)
     }
 
+    if (this.stuck && this.state !== 'waiting') {
+      // A slow red pulse around a dragon that has gone quiet mid-quest.
+      const pulse = (Math.sin(t * 2.5) + 1) / 2
+      const r = this.sprite ? 34 : 24
+      this.ring.circle(0, 0, r + pulse * 6).stroke({ width: 3, color: STUCK_RED, alpha: 0.85 - pulse * 0.5 })
+    }
     if (this.selected) {
       this.ring.ellipse(0, 18, 30, 10).stroke({ width: 2, color: 0xffe9a8, alpha: 0.9 })
     }

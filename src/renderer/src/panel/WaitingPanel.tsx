@@ -29,7 +29,10 @@ export function WaitingPanel({ sessions, projects, onOpen, onClose }: Props) {
     return () => clearInterval(t)
   }, [])
 
-  const waiting = sessions.filter((s) => s.state === 'waiting').sort((a, b) => a.stateSince - b.stateSince)
+  // Stuck dragons first (working ones included: they need a look too), then longest-waiting first.
+  const waiting = sessions
+    .filter((s) => s.state === 'waiting' || !!s.stuck)
+    .sort((a, b) => Number(!!b.stuck) - Number(!!a.stuck) || a.stateSince - b.stateSince)
 
   return (
     <aside className="waiting-panel" aria-label="Awaiting you">
@@ -90,7 +93,8 @@ function WaitingRow({ session, realm, tint, waited, onOpen }: RowProps) {
           {waited}
         </span>
       </div>
-      <div className="waiting-why">{session.attention || 'Waiting for you'}</div>
+      {session.stuck ? <div className="waiting-stuck">Looks stuck: {session.stuck}</div> : null}
+      <div className="waiting-why">{session.attention || (session.state === 'waiting' ? 'Waiting for you' : 'Working')}</div>
       <div className="waiting-actions">
         {canReply ? (
           <input

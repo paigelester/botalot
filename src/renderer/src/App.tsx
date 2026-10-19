@@ -62,7 +62,8 @@ export function App() {
 
   const sessionList = useMemo(() => [...sessions.values()], [sessions])
   const selected = selectedId ? sessions.get(selectedId) : undefined
-  const waiting = sessionList.filter((s) => s.state === 'waiting').length
+  // Stuck dragons need you too, even while they still count as working.
+  const waiting = sessionList.filter((s) => s.state === 'waiting' || !!s.stuck).length
   const working = sessionList.filter((s) => s.state === 'working').length
   const dormant = sessionList.filter((s) => s.state === 'dormant').length
 
@@ -132,6 +133,7 @@ export function App() {
         <span>💤 curled = resting</span>
         <span>🪦 grey = fallen</span>
         <span>🌙 faded = dormant, click to wake</span>
+        <span>⭕ red ring = looks stuck</span>
         <span>🌿 green name = wild</span>
         <span className="spacer" />
         <span>Click a castle to summon there · click a dragon to open its terminal · Esc closes · Ctrl+\ widens</span>
