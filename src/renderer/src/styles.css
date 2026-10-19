@@ -482,6 +482,10 @@ select:focus {
 .badge-agent-copilot {
   color: #9fd0ff;
 }
+.badge-wild {
+  color: #a8e6a1;
+  border-style: dashed;
+}
 
 /* Issue picker */
 .issue-picker {

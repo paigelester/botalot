@@ -3,6 +3,9 @@
 /** dormant = recorded from an earlier run, not running now; wake it to resume the agent's session. */
 export type SessionState = 'working' | 'waiting' | 'idle' | 'dead' | 'dormant'
 
+/** projectId of wild dragons whose folder lies outside every realm. They gather in the unclaimed lands. */
+export const UNCLAIMED_REALM = 'unclaimed'
+
 /** Which coding agent a dragon runs. */
 export type AgentKind = 'claude' | 'copilot'
 
@@ -65,6 +68,11 @@ export interface Session {
   claudeSessionId?: string
   /** True when the dragon can be woken: dormant or dead, with its folder still on disk. */
   resumable?: boolean
+  /**
+   * Set only on a wild dragon: a background Claude Code session Botalot did not summon.
+   * Its `claude agents` id, used to attach. Wild dragons are never recorded or woken by the app.
+   */
+  wildId?: string
   pid?: number
   startedAt: number
   exitCode?: number
@@ -163,6 +171,10 @@ export interface DragonApi {
     write(id: string, data: string): void
     resize(id: string, cols: number, rows: number): void
     scrollback(id: string): Promise<string>
+    /** Wild dragons only: run `claude attach` in a pty so the panel's terminal shows the session. */
+    attach(id: string): Promise<void>
+    /** Wild dragons only: close the attach client. The background session keeps running. */
+    detach(id: string): Promise<void>
     refreshGit(id: string): Promise<Session | undefined>
     onUpdate(cb: (session: Session) => void): () => void
     onData(cb: (id: string, data: string) => void): () => void

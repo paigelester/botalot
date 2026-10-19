@@ -59,6 +59,14 @@ or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot logi
   exclamation = waiting on you (permission prompt or question); curled asleep =
   idle; faded and curled = dormant (from an earlier run, wake to resume); grey
   with a gravestone = exited (wake to resume, or bury).
+- **Wild dragons** are Claude Code background sessions the app did not summon
+  (`claude --bg`, `/bg`, the `claude agents` view). The app polls
+  `claude agents --json --all` every few seconds and shows each one, with a green
+  italic name, in the realm whose folder holds its `cwd`, or at the camp in the
+  **unclaimed lands** when no realm does. Blocked sessions show the gold ring with
+  what they wait for. Clicking one runs `claude attach <id>` in the panel; closing
+  the panel closes only that client, and the session keeps running. Wild dragons
+  are never recorded, slain or woken by the app; Claude Code's supervisor owns them.
 
 ## Pixel-art dragons
 

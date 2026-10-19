@@ -6,6 +6,7 @@ import { HookServer } from './hooks'
 import { ensureClaudeHooks, listAgents } from './agents'
 import { SessionManager } from './sessions'
 import { RegistryWatcher } from './registry'
+import { BackgroundWatcher } from './background'
 import { listWorktrees, remoteDefaultBranch } from './git'
 import { listGitHubIssues } from './github'
 import { listJiraIssues, testJira } from './jira'
@@ -22,6 +23,7 @@ let sessions: SessionManager
 let projects: ProjectStore
 const hooks = new HookServer()
 const registry = new RegistryWatcher()
+const background = new BackgroundWatcher()
 
 function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
@@ -65,9 +67,11 @@ function registerIpc(): void {
   ipcMain.handle('projects:add', () => projects.addViaDialog())
   ipcMain.handle('projects:update', (_e, id: string, patch) => projects.update(id, patch))
   ipcMain.handle('projects:remove', (_e, id: string) => {
-    const alive = sessions.list().filter((s) => s.projectId === id && s.state !== 'dead')
+    // Wild dragons are not ours to slay; on the next poll they move to the unclaimed lands.
+    const owned = sessions.list().filter((s) => s.projectId === id && !s.wildId)
+    const alive = owned.filter((s) => s.state !== 'dead')
     if (alive.length > 0) throw new Error(alive.length + ' dragon(s) still live in that realm. Slay them first.')
-    for (const s of sessions.list()) if (s.projectId === id) sessions.dismiss(s.id)
+    for (const s of owned) sessions.dismiss(s.id)
     return projects.remove(id)
   })
   ipcMain.handle('projects:worktrees', async (_e, id: string) => {
@@ -111,6 +115,8 @@ function registerIpc(): void {
   ipcMain.on('sessions:resize', (_e, id: string, cols: number, rows: number) => sessions.resize(id, cols, rows))
   ipcMain.handle('sessions:scrollback', (_e, id: string) => sessions.scrollback(id))
   ipcMain.handle('sessions:refreshGit', (_e, id: string) => sessions.refreshGit(id))
+  ipcMain.handle('sessions:attach', (_e, id: string) => sessions.attach(id))
+  ipcMain.handle('sessions:detach', (_e, id: string) => sessions.detach(id))
 
   ipcMain.handle('names:random', () => sessions.randomName())
   ipcMain.handle('agents:list', () => listAgents())
@@ -127,6 +133,11 @@ app.whenReady().then(async () => {
   hooks.on('event', (ev) => sessions.handleHook(ev))
   registry.on('registry', (entries) => sessions.applyRegistry(entries))
   registry.start()
+  // The demo kingdom is fictional, so real background sessions stay out of it.
+  if (!process.env.DRAGON_DEMO && !process.env.DRAGON_DEMO_PLAN) {
+    background.on('background', (entries) => sessions.applyBackground(entries, projects.all()))
+    background.start()
+  }
 
   sessions.on('update', (s) => send('session:update', s))
   sessions.on('removed', (id) => send('session:removed', id))
@@ -215,6 +226,7 @@ async function runDevHelpers(): Promise<void> {
 app.on('before-quit', () => {
   sessions?.killAll()
   registry.stop()
+  background.stop()
   hooks.stop()
 })
 

@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, Text } from 'pixi.js'
-import type { Project, Session } from '@shared/types'
+import { UNCLAIMED_REALM, type Project, type Session } from '@shared/types'
 import { Dragon, type Perch } from './Dragon'
 import { loadDragonSprites, type DragonSpriteSet } from './sprites'
 
@@ -22,6 +22,10 @@ const CASTLE_SLOTS: [number, number][] = [
   [560, 520],
   [1200, 620]
 ]
+
+/** The camp in the unclaimed lands, where wild dragons from outside every realm gather. */
+const CAMP_POS: [number, number] = [80, 470]
+const CAMP_TINT = 0x9aa88a
 
 /** Offsets of worktree holdings around their castle. */
 const HOLDING_OFFSETS: [number, number][] = [
@@ -275,6 +279,36 @@ export class KingdomScene {
     return h
   }
 
+  /** The unclaimed lands camp, raised the first time a wild dragon needs it. Stored with the castles. */
+  private ensureCamp(): Castle {
+    const existing = this.castles.get(UNCLAIMED_REALM)
+    if (existing) return existing
+    const [x, y] = CAMP_POS
+    const container = new Container()
+    container.position.set(x, y)
+    container.addChild(campGraphic())
+    const name = new Text({
+      text: 'Unclaimed lands',
+      style: { fontFamily: 'Georgia, serif', fontSize: 13, fontStyle: 'italic', fill: 0xa8e6a1, stroke: { color: 0x1a1024, width: 4 } }
+    })
+    name.anchor.set(0.5, 0)
+    name.position.set(0, 16)
+    name.resolution = 2
+    container.addChild(name)
+    this.land.addChild(container)
+    const camp: Castle = { projectId: UNCLAIMED_REALM, container, x, y, holdings: new Map() }
+    this.castles.set(UNCLAIMED_REALM, camp)
+    this.sortLand()
+    return camp
+  }
+
+  private removeCamp(): void {
+    const camp = this.castles.get(UNCLAIMED_REALM)
+    if (!camp) return
+    camp.container.destroy({ children: true })
+    this.castles.delete(UNCLAIMED_REALM)
+  }
+
   private sortLand(): void {
     this.land.children.sort((a, b) => a.position.y - b.position.y)
   }
@@ -285,6 +319,10 @@ export class KingdomScene {
     const seen = new Set<string>()
     const perchGroups = new Map<string, { perch: Perch; dragons: Dragon[] }>()
     const tintOf = new Map(this.projects.map((p) => [p.id, p.tint]))
+
+    tintOf.set(UNCLAIMED_REALM, CAMP_TINT)
+    if (this.sessions.some((s) => s.projectId === UNCLAIMED_REALM)) this.ensureCamp()
+    else this.removeCamp()
 
     for (const s of this.sessions) {
       const castle = this.castles.get(s.projectId)
@@ -306,10 +344,15 @@ export class KingdomScene {
 
       let key: string
       let perch: Perch
-      if (s.isWorktree) {
+      // The camp has no holdings: every unclaimed dragon perches at the fire.
+      if (s.isWorktree && castle.projectId !== UNCLAIMED_REALM) {
         const h = this.ensureHolding(castle, s.cwd, s.branch || 'worktree', tintOf.get(s.projectId) ?? 0xffffff)
         key = `h:${h.cwd.toLowerCase()}`
         perch = { x: h.x, y: h.y - 34, orbitX: h.x, orbitY: h.y - 80 }
+      } else if (castle.projectId === UNCLAIMED_REALM) {
+        // Above the low tent, not on it.
+        key = `c:${castle.projectId}`
+        perch = { x: castle.x, y: castle.y - 70, orbitX: castle.x + 40, orbitY: castle.y - 120 }
       } else {
         key = `c:${castle.projectId}`
         perch = { x: castle.x, y: castle.y - 52, orbitX: castle.x, orbitY: castle.y - 110 }
@@ -380,6 +423,22 @@ function castleGraphic(tint: number): Graphics {
   g.poly([2, -102, 22, -96, 2, -90]).fill(roof)
   // Mortar lines.
   for (let y = -4; y < 20; y += 8) g.rect(-56, y, 112, 1).fill({ color: 0x000000, alpha: 0.12 })
+  return g
+}
+
+/** A tent and campfire: the unclaimed lands have no castle. */
+function campGraphic(): Graphics {
+  const g = new Graphics()
+  g.ellipse(0, 12, 46, 9).fill({ color: 0x000000, alpha: 0.25 })
+  // Tent.
+  g.poly([-40, 10, -18, -26, 4, 10]).fill(0x8a7a5a)
+  g.poly([-18, -26, -12, -26, 10, 10, 4, 10]).fill(0x6e6046)
+  g.poly([-24, 10, -18, -6, -12, 10]).fill(0x2a1c14)
+  // Campfire.
+  g.rect(14, 6, 22, 4).fill(0x4a3220)
+  g.rect(18, 2, 14, 4).fill(0x5a3e28)
+  g.poly([17, 3, 25, -16, 33, 3]).fill(0xff8a2a)
+  g.poly([21, 3, 25, -8, 29, 3]).fill(0xffd34a)
   return g
 }
 

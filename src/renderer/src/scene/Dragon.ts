@@ -64,7 +64,14 @@ export class Dragon extends Container {
     this.addChild(this.zzz)
     this.nameLabel = new Text({
       text: session.agent === 'copilot' ? session.name + ' ✦' : session.name,
-      style: { fontFamily: 'Georgia, serif', fontSize: 12, fill: 0xf6edd6, stroke: { color: 0x1a1024, width: 3 } }
+      // Wild dragons (background sessions Botalot did not summon) carry a green, italic name.
+      style: {
+        fontFamily: 'Georgia, serif',
+        fontSize: 12,
+        fill: session.wildId ? 0xa8e6a1 : 0xf6edd6,
+        fontStyle: session.wildId ? 'italic' : 'normal',
+        stroke: { color: 0x1a1024, width: 3 }
+      }
     })
     this.nameLabel.anchor.set(0.5, 0)
     this.nameLabel.resolution = 2

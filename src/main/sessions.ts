@@ -1,14 +1,16 @@
 import { EventEmitter } from 'events'
 import { randomUUID } from 'crypto'
 import { existsSync } from 'fs'
+import { homedir } from 'os'
 import * as pty from 'node-pty'
-import type { AgentKind, Project, Session, SessionState, SpawnRequest } from '@shared/types'
+import { UNCLAIMED_REALM, type AgentKind, type Project, type Session, type SessionState, type SpawnRequest } from '@shared/types'
 import { addWorktree, currentBranch, gitInfo, listWorktrees } from './git'
 import { randomName } from './names'
 import type { HookEvent } from './hooks'
 import type { RegistryEntry } from './registry'
+import type { BackgroundEntry } from './background'
 import { normalizePath } from './projects'
-import { AGENTS, resolveOnPath } from './agents'
+import { AGENTS, childEnv, resolveOnPath } from './agents'
 import { loadSessionRecords, saveSessionRecords, type SessionRecord } from './sessionStore'
 
 const SCROLLBACK_LIMIT = 400_000 // characters kept per session for replay when a panel opens
@@ -63,7 +65,9 @@ export class SessionManager extends EventEmitter {
   /** Persist every dragon we know about. Called on creation and on every meaningful change. */
   private persist(): void {
     if (process.env.DRAGON_DEMO) return // fake dragons are never remembered
-    saveSessionRecords([...this.live.values()].map((l) => this.toRecord(l.session)))
+    // Wild dragons belong to Claude Code's own supervisor; the poller rediscovers them on every launch.
+    const owned = [...this.live.values()].filter((l) => !l.session.wildId)
+    saveSessionRecords(owned.map((l) => this.toRecord(l.session)))
   }
 
   /** Bring back dragons recorded by earlier runs as dormant, ready to be woken. */
@@ -224,8 +228,7 @@ export class SessionManager extends EventEmitter {
       file = resolveOnPath('node') ?? 'node'
     }
 
-    const env: Record<string, string> = {}
-    for (const [k, v] of Object.entries(process.env)) if (typeof v === 'string') env[k] = v
+    const env = childEnv()
     env.DRAGON_SESSION = session.id
     env.DRAGON_PORT = String(this.hookPort)
     env.DRAGON_AGENT = session.agent
@@ -236,9 +239,6 @@ export class SessionManager extends EventEmitter {
     delete env.WT_PROFILE_ID
     delete env.TERM_PROGRAM_VERSION
     env.TERM_PROGRAM = 'botalot'
-    // If the app itself was launched from inside a Claude Code session, the child would inherit nesting
-    // markers and run as a throwaway child session: no transcript, so no resume. Strip them.
-    for (const k of Object.keys(env)) if (k === 'CLAUDECODE' || k === 'CLAUDE_PID' || k.startsWith('CLAUDE_CODE_')) delete env[k]
 
     try {
       l.proc = pty.spawn(file, args, {
@@ -466,7 +466,7 @@ export class SessionManager extends EventEmitter {
   applyRegistry(entries: RegistryEntry[]): void {
     const claimed = new Set<number>()
     for (const l of this.live.values()) {
-      if (l.session.state === 'dead' || l.session.state === 'dormant' || l.session.agent !== 'claude' || !l.proc) continue
+      if (l.session.wildId || l.session.state === 'dead' || l.session.state === 'dormant' || l.session.agent !== 'claude' || !l.proc) continue
       let entry: RegistryEntry | undefined
       if (l.session.claudeSessionId) entry = entries.find((e) => e.sessionId === l.session.claudeSessionId)
       if (!entry) {
@@ -494,4 +494,178 @@ export class SessionManager extends EventEmitter {
       }
     }
   }
+
+  // ------------------------------------------------------------ wild dragons
+
+  /**
+   * Mirror Claude Code's background sessions (from `claude agents --json --all`) as wild dragons.
+   * Each poll is the full truth: wild dragons missing from it leave the kingdom.
+   */
+  applyBackground(entries: BackgroundEntry[], projects: Project[]): void {
+    const ownedSessionIds = new Set<string>()
+    for (const l of this.live.values()) if (!l.session.wildId && l.session.claudeSessionId) ownedSessionIds.add(l.session.claudeSessionId)
+
+    const seen = new Set<string>()
+    for (const e of entries) {
+      if (e.sessionId && ownedSessionIds.has(e.sessionId)) continue
+      const id = 'wild-' + e.id
+      seen.add(id)
+      const realm = realmFor(e.cwd, projects)
+      const { state, attention } = wildState(e)
+      let l = this.live.get(id)
+      if (!l) {
+        const session: Session = {
+          id,
+          name: e.name || e.id,
+          agent: 'claude',
+          projectId: realm?.id ?? UNCLAIMED_REALM,
+          cwd: e.cwd,
+          branch: '',
+          isWorktree: !!realm && normalizePath(realm.path) !== normalizePath(e.cwd),
+          state,
+          stateSince: Date.now(),
+          attention,
+          claudeSessionId: e.sessionId,
+          wildId: e.id,
+          pid: e.pid,
+          startedAt: e.startedAt ?? Date.now()
+        }
+        l = { session, proc: null, scrollback: '', lastHookAt: 0, gitTimer: null, idleTimer: null }
+        this.live.set(id, l)
+        const live = l
+        live.gitTimer = setInterval(() => void this.refreshGit(id), 15_000)
+        void this.refreshGit(id)
+        this.publish(live)
+        continue
+      }
+      const s = l.session
+      const projectId = realm?.id ?? UNCLAIMED_REALM
+      const isWorktree = !!realm && normalizePath(realm.path) !== normalizePath(e.cwd)
+      const changed =
+        s.state !== state || s.attention !== attention || s.projectId !== projectId || s.cwd !== e.cwd || s.isWorktree !== isWorktree || s.pid !== e.pid || s.name !== (e.name || e.id)
+      if (!changed) continue
+      // Set directly rather than through setState: a wild dragon may come back from failed or stopped.
+      if (s.state !== state) {
+        s.state = state
+        s.stateSince = Date.now()
+      }
+      s.attention = attention
+      s.projectId = projectId
+      s.cwd = e.cwd
+      s.isWorktree = isWorktree
+      s.pid = e.pid
+      s.name = e.name || e.id
+      this.publish(l)
+    }
+
+    for (const [id, l] of this.live) if (l.session.wildId && !seen.has(id)) this.dismiss(id)
+  }
+
+  /** Open `claude attach <id>` in a pty for a wild dragon. Its output streams like any dragon's terminal. */
+  attach(id: string): void {
+    const l = this.live.get(id)
+    if (!l || !l.session.wildId || l.proc) return
+    const binary = this.resolveBinary('claude')
+    if (!binary) {
+      l.scrollback = 'Claude Code is not installed (no "claude" on PATH).\r\n'
+      this.emit('data', id, l.scrollback)
+      return
+    }
+    let file = binary
+    let args = ['attach', l.session.wildId]
+    if (/\.c?js$/i.test(file)) {
+      args = [file, ...args]
+      file = resolveOnPath('node') ?? 'node'
+    }
+    const env = childEnv()
+    env.TERM = 'xterm-256color'
+    env.COLORTERM = 'truecolor'
+    env.TERM_PROGRAM = 'botalot'
+    l.scrollback = ''
+    let proc: pty.IPty
+    try {
+      proc = pty.spawn(file, args, {
+        name: 'xterm-256color',
+        cols: 120,
+        rows: 32,
+        cwd: existsSync(l.session.cwd) ? l.session.cwd : homedir(),
+        env,
+        useConpty: true
+      })
+    } catch (err) {
+      const msg = `Could not attach: ${(err as Error).message}\r\n`
+      l.scrollback = msg
+      this.emit('data', id, msg)
+      return
+    }
+    l.proc = proc
+    proc.onData((data) => {
+      l.scrollback += data
+      if (l.scrollback.length > SCROLLBACK_LIMIT) l.scrollback = l.scrollback.slice(-SCROLLBACK_LIMIT)
+      this.emit('data', id, data)
+    })
+    // The attach client ending (Ctrl+Z, or the session going away) leaves the background session alone.
+    proc.onExit(() => {
+      if (l.proc !== proc) return
+      l.proc = null
+      const note = '\r\n\x1b[2m[detached; close and reopen the panel to attach again]\x1b[0m\r\n'
+      l.scrollback += note
+      this.emit('data', id, note)
+    })
+  }
+
+  /** Close a wild dragon's attach client. The background session keeps running under Claude Code. */
+  detach(id: string): void {
+    const l = this.live.get(id)
+    if (!l || !l.session.wildId) return
+    const proc = l.proc
+    l.proc = null
+    l.scrollback = ''
+    if (!proc) return
+    try {
+      proc.kill()
+    } catch {
+      /* already gone */
+    }
+  }
+}
+
+/** The realm whose folder holds `cwd`. The deepest match wins, so nested realms claim their own sessions. */
+function realmFor(cwd: string, projects: Project[]): Project | undefined {
+  const target = normalizePath(cwd)
+  let best: Project | undefined
+  for (const p of projects) {
+    const root = normalizePath(p.path)
+    if (target !== root && !target.startsWith(root + '\\')) continue
+    if (!best || root.length > normalizePath(best.path).length) best = p
+  }
+  return best
+}
+
+/** Map a background session's state and status onto a dragon state. */
+function wildState(e: BackgroundEntry): { state: SessionState; attention?: string } {
+  const state = String(e.state ?? '').toLowerCase()
+  const status = String(e.status ?? '').toLowerCase()
+  if (state === 'blocked' || status === 'waiting') return { state: 'waiting', attention: describeWaitingFor(e.waitingFor) }
+  if (state === 'failed') return { state: 'dead', attention: 'The background session failed' }
+  if (state === 'stopped') return { state: 'dead', attention: 'Stopped by Claude Code; its transcript is kept' }
+  if (state === 'working' || status === 'busy') return { state: 'working' }
+  return { state: 'idle', attention: state === 'done' ? 'Finished its task' : undefined }
+}
+
+/** `waitingFor` is free-form in the CLI: a string such as "permission prompt", or an object with a type or message. */
+function describeWaitingFor(w: unknown): string {
+  let text = ''
+  if (typeof w === 'string') text = w
+  else if (w && typeof w === 'object') {
+    const o = w as Record<string, unknown>
+    for (const k of ['message', 'description', 'type', 'kind']) {
+      if (typeof o[k] === 'string' && o[k]) {
+        text = o[k] as string
+        break
+      }
+    }
+  }
+  text = text.replace(/[_-]+/g, ' ').trim()
+  return text ? 'Waiting for ' + text : 'Waiting for you'
 }

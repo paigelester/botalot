@@ -162,6 +162,18 @@ export function ensureClaudeHooks(): string {
   return writeHookSettings(CLAUDE_EVENTS)
 }
 
+/**
+ * The environment for an agent process the app starts. If the app itself was launched from inside a
+ * Claude Code session, children would inherit nesting markers and run as throwaway child sessions
+ * (no transcript, so no resume), so those are stripped.
+ */
+export function childEnv(): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(process.env)) if (typeof v === 'string') env[k] = v
+  for (const k of Object.keys(env)) if (k === 'CLAUDECODE' || k === 'CLAUDE_PID' || k.startsWith('CLAUDE_CODE_')) delete env[k]
+  return env
+}
+
 export function listAgents(): AgentInfo[] {
   return (Object.values(AGENTS) as AgentDef[]).map((a) => ({
     id: a.id,

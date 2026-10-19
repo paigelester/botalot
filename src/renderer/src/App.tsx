@@ -116,6 +116,7 @@ export function App() {
         <span>💤 curled = resting</span>
         <span>🪦 grey = fallen</span>
         <span>🌙 faded = dormant, click to wake</span>
+        <span>🌿 green name = wild</span>
         <span className="spacer" />
         <span>Click a castle to summon there · click a dragon to open its terminal · Esc closes · Ctrl+\ widens</span>
       </footer>

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { Project, Session } from '@shared/types'
+import { useEffect, useState } from 'react'
+import { UNCLAIMED_REALM, type Project, type Session } from '@shared/types'
 import { api } from '../api'
 import { TerminalView } from './TerminalView'
 
@@ -26,6 +26,13 @@ function hex(tint: number): string {
 /** Side panel: themed status strip over a real terminal. */
 export function SessionPanel({ session, project, wide, onClose, onToggleWide }: Props) {
   const alive = session.state !== 'dead' && session.state !== 'dormant'
+  const wild = !!session.wildId
+  // A wild dragon's terminal is a `claude attach` client, open only while its panel is.
+  useEffect(() => {
+    if (!wild) return
+    void api.sessions.attach(session.id)
+    return () => void api.sessions.detach(session.id)
+  }, [session.id, wild])
   const [waking, setWaking] = useState(false)
   const [wakeError, setWakeError] = useState<string | null>(null)
   async function wake() {
@@ -50,6 +57,11 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
           </span>
           <span className={'badge badge-' + session.state}>{STATE_LABEL[session.state]}</span>
           <span className={'badge badge-agent badge-agent-' + session.agent}>{session.agent === 'copilot' ? 'Copilot' : 'Claude'}</span>
+          {wild ? (
+            <span className="badge badge-wild" title={'Background session ' + session.wildId + ', started outside Botalot'}>
+              Wild
+            </span>
+          ) : null}
           <span className="spacer" />
           <button className="ghost" title="Toggle wide panel (Ctrl+\\)" onClick={onToggleWide}>
             {wide ? '⇤' : '⇥'}
@@ -60,7 +72,7 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
         </div>
         <div className="strip-row meta">
           <span title={session.cwd}>
-            🏰 {project?.name ?? 'Unknown realm'}
+            🏰 {project?.name ?? (session.projectId === UNCLAIMED_REALM ? 'Unclaimed lands' : 'Unknown realm')}
             {session.isWorktree ? ' · holding' : ''}
           </span>
           <span>⎇ {session.branch || '—'}</span>
@@ -74,7 +86,11 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
           <button className="ghost small" onClick={() => void api.sessions.refreshGit(session.id)} title="Refresh git status">
             ↻
           </button>
-          {alive ? (
+          {wild ? (
+            <span className="hint" title={session.cwd}>
+              Lives in Claude Code's background
+            </span>
+          ) : alive ? (
             <button className="danger small" onClick={() => void api.sessions.kill(session.id)} title="Kill the session">
               Slay
             </button>
@@ -113,7 +129,7 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
           </p>
         </div>
       ) : (
-        <TerminalView sessionId={session.id} alive={alive} />
+        <TerminalView sessionId={session.id} alive={alive || wild} />
       )}
     </aside>
   )
