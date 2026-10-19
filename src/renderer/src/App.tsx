@@ -129,12 +129,13 @@ export function App() {
 
       <footer className="legend">
         <span>🔥 flying = questing</span>
-        <span>❗ gold ring = awaiting your word</span>
+        <span>❗ gold ring = awaits you</span>
         <span>💤 curled = resting</span>
         <span>🪦 grey = fallen</span>
-        <span>🌙 faded = dormant, click to wake</span>
-        <span>⭕ red ring = looks stuck</span>
+        <span>🌙 faded = dormant</span>
+        <span>⭕ red ring = stuck</span>
         <span>🌿 green name = wild</span>
+        <span>⚑ = patrol</span>
         <span className="spacer" />
         <span>Click a castle to summon there · click a dragon to open its terminal · Esc closes · Ctrl+\ widens</span>
       </footer>

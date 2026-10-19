@@ -9,8 +9,10 @@ import { RegistryWatcher } from './registry'
 import { BackgroundWatcher } from './background'
 import { Herald } from './herald'
 import { PrWatcher } from './prWatcher'
+import { Patrol } from './patrol'
+import { fileAttemptStore, patrolTrackerFor } from './patrolTrackers'
 import { listWorktrees, remoteDefaultBranch } from './git'
-import { listGitHubIssues } from './github'
+import { listGitHubIssues, pullRequestFor } from './github'
 import { listJiraIssues, testJira } from './jira'
 import { listJiraSites, removeJiraSite, saveJiraSite } from './secrets'
 
@@ -31,6 +33,8 @@ const hooks = new HookServer()
 const registry = new RegistryWatcher()
 const background = new BackgroundWatcher()
 let prs: PrWatcher | null = null
+let patrolTimer: NodeJS.Timeout | null = null
+const PATROL_MS = 2 * 60_000
 
 function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
@@ -164,6 +168,30 @@ app.whenReady().then(async () => {
   sessions.on('removed', (id) => prs?.forget(id))
   // The demo's realms are fictional: no GitHub to ask.
   if (!process.env.DRAGON_DEMO && !process.env.DRAGON_DEMO_PLAN) prs.start()
+
+  // Patrol: every couple of minutes, and soon after a realm's patrol is switched on. The first round waits
+  // for the background poll to bring restored dragons back, so a live patrol dragon isn't taken for dead.
+  if (!process.env.DRAGON_DEMO && !process.env.DRAGON_DEMO_PLAN) {
+    const patrol = new Patrol({
+      projects: () => projects.all(),
+      sessions: () => sessions.list(),
+      trackerFor: patrolTrackerFor,
+      pullRequest: pullRequestFor,
+      summon: (req, p) => sessions.spawn(req, p),
+      mark: (id, mark) => sessions.setPatrol(id, mark),
+      attempts: fileAttemptStore(),
+      log: (m) => console.log('[patrol]', m)
+    })
+    const round = () => void patrol.tick()
+    setTimeout(round, 20_000)
+    patrolTimer = setInterval(round, PATROL_MS)
+    let wasOn = new Set(projects.all().filter((p) => p.patrol?.enabled).map((p) => p.id))
+    projects.on('changed', () => {
+      const on = new Set(projects.all().filter((p) => p.patrol?.enabled).map((p) => p.id))
+      if ([...on].some((id) => !wasOn.has(id))) setTimeout(round, 5_000)
+      wasOn = on
+    })
+  }
   sessions.on('data', (id, data) => send('session:data', id, data))
   projects.on('changed', (list) => send('projects:changed', list))
 
@@ -253,6 +281,7 @@ app.on('before-quit', () => {
   registry.stop()
   background.stop()
   prs?.stop()
+  if (patrolTimer) clearInterval(patrolTimer)
   hooks.stop()
   removeHookPortFile()
 })

@@ -30,6 +30,8 @@ async function call<T>(site: string, path: string, init?: RequestInit): Promise<
     }
     throw new Error(`Jira returned ${res.status}${detail ? ': ' + detail : ''}`)
   }
+  // Edits (PUT issue) answer 204 with no body.
+  if (res.status === 204) return undefined as T
   return (await res.json()) as T
 }
 
@@ -94,4 +96,40 @@ export async function listJiraIssues(t: JiraTracker, search?: string): Promise<I
   } catch (err) {
     return { tracker: 'jira', issues: [], error: (err as Error).message }
   }
+}
+
+// ------------------------------------------------------------------ patrol
+
+/** The oldest open issue in the realm's query that carries `label`, or null. */
+export async function jiraOldestWithLabel(t: JiraTracker, label: string): Promise<Issue | null> {
+  const base = defaultJql(t).replace(/s+ORDERs+BYs+.*$/i, '')
+  const jql = `(${base}) AND labels = "${escapeJql(label)}" ORDER BY created ASC`
+  const body = JSON.stringify({ jql, maxResults: 1, fields: ['summary', 'description', 'updated', 'labels', 'status'] })
+  const res = await call<SearchResponse>(t.site, '/rest/api/2/search/jql', { method: 'POST', body })
+  const i = res.issues[0]
+  if (!i) return null
+  return {
+    key: i.key,
+    title: i.fields.summary ?? '',
+    body: (i.fields.description ?? '').toString(),
+    labels: i.fields.labels ?? [],
+    assignees: [],
+    updatedAt: i.fields.updated ?? '',
+    status: i.fields.status?.name,
+    url: `${normalizeSite(t.site)}/browse/${i.key}`
+  }
+}
+
+export async function jiraLabels(t: JiraTracker, key: string): Promise<string[]> {
+  const res = await call<{ fields: { labels?: string[] } }>(t.site, `/rest/api/2/issue/${encodeURIComponent(key)}?fields=labels`)
+  return res.fields.labels ?? []
+}
+
+export async function jiraRelabel(t: JiraTracker, key: string, remove: string[], add: string[]): Promise<void> {
+  const labels = [...remove.map((l) => ({ remove: l })), ...add.map((l) => ({ add: l }))]
+  await call<void>(t.site, `/rest/api/2/issue/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ update: { labels } }) })
+}
+
+export async function jiraComment(t: JiraTracker, key: string, text: string): Promise<void> {
+  await call<unknown>(t.site, `/rest/api/2/issue/${encodeURIComponent(key)}/comment`, { method: 'POST', body: JSON.stringify({ body: text }) })
 }

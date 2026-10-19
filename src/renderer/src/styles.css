@@ -730,3 +730,27 @@ button.pill:not(.pill-alert) {
   color: #ff9a80;
   font-size: 12px;
 }
+
+/* Patrol settings under a realm in the Realms dialog */
+.realm-patrol {
+  display: flex;
+  gap: 16px;
+  margin-left: 32px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.realm-patrol-max {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-dim);
+}
+.realm-patrol input[type='number'] {
+  width: 48px;
+  margin: 0 6px;
+}
+.badge-patrol {
+  color: #ffb27a;
+  border-style: dashed;
+  text-decoration: none;
+}

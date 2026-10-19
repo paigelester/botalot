@@ -66,7 +66,7 @@ export class Dragon extends Container {
     this.zzz.visible = false
     this.addChild(this.zzz)
     this.nameLabel = new Text({
-      text: session.agent === 'copilot' ? session.name + ' ✦' : session.name,
+      text: nameText(session),
       // Wild dragons (background sessions Botalot did not summon) carry a green, italic name.
       style: {
         fontFamily: 'Georgia, serif',
@@ -88,7 +88,7 @@ export class Dragon extends Container {
   apply(session: Session): void {
     this.state = session.state
     this.stuck = !!session.stuck
-    this.nameLabel.text = session.agent === 'copilot' ? session.name + ' ✦' : session.name
+    this.nameLabel.text = nameText(session)
     const colour = session.state === 'dead' ? GREY : session.state === 'dormant' ? mix(this.realmTint, 0x5a6080, 0.6) : this.realmTint
     this.placeholder?.setTint(colour)
     if (this.sprite) this.sprite.tint = colour
@@ -267,6 +267,11 @@ class PlaceholderDragon extends Container {
     this.flame.poly([31, -11, 48, -16, 44, -11, 50, -8, 42, -6, 46, -2, 31, -7]).fill(0xff8a2a)
     this.flame.poly([31, -10, 40, -12, 42, -9, 38, -6, 31, -8]).fill(0xffd34a)
   }
+}
+
+/** The name under a dragon: ✦ marks Copilot, ⚑ marks a dragon patrol summoned. */
+function nameText(s: Session): string {
+  return s.name + (s.agent === 'copilot' ? ' ✦' : '') + (s.patrol ? ' ⚑' : '')
 }
 
 function lighten(c: number): number {

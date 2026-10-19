@@ -47,7 +47,7 @@ export function RealmsDialog({ onClose }: Props) {
     setConfirmId(null)
   }
 
-  async function patch(id: string, p: Partial<Pick<Project, 'name' | 'tint' | 'worktreeLayout' | 'hidden' | 'tracker'>>) {
+  async function patch(id: string, p: Partial<Pick<Project, 'name' | 'tint' | 'worktreeLayout' | 'hidden' | 'tracker' | 'patrol'>>) {
     setAll(await api.projects.update(id, p))
   }
 
@@ -111,6 +111,34 @@ export function RealmsDialog({ onClose }: Props) {
                     </button>
                   )}
                 </div>
+                {t.kind !== 'none' ? (
+                  <div className="realm-patrol">
+                    <label className="radio" title="Every couple of minutes while Botalot runs, take the oldest issue labelled ready-for-agent and summon a background dragon for it">
+                      <input
+                        type="checkbox"
+                        checked={!!p.patrol?.enabled}
+                        onChange={(e) => void patch(p.id, { patrol: { enabled: e.target.checked, max: p.patrol?.max ?? 1 } })}
+                      />
+                      <span>
+                        <b>Patrol</b> — pick up <code>ready-for-agent</code> issues on its own
+                      </span>
+                    </label>
+                    <span className="realm-patrol-max">
+                      at most
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={p.patrol?.max ?? 1}
+                        disabled={!p.patrol?.enabled}
+                        onChange={(e) =>
+                          void patch(p.id, { patrol: { enabled: !!p.patrol?.enabled, max: Math.min(10, Math.max(1, Math.round(Number(e.target.value) || 1))) } })
+                        }
+                      />
+                      dragon{(p.patrol?.max ?? 1) === 1 ? '' : 's'} at once
+                    </span>
+                  </div>
+                ) : null}
                 {t.kind === 'jira' ? (
                   <div className="realm-jira">
                     <label>

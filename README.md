@@ -62,6 +62,16 @@ or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot logi
   opening them. The waiting count also shows as a badge on the taskbar icon, and
   when a dragon starts waiting while the window is not focused, an OS notification
   says so; clicking it opens that dragon.
+- **Patrol.** Switch on Patrol for a realm in the Realms dialog and, every couple
+  of minutes while the app runs, it takes the oldest open issue labelled
+  `ready-for-agent`, relabels it `agent-working`, and summons a background dragon
+  (marked ⚑) on a new holding named from the issue, told to work unattended and
+  finish with a draft pull request. When that branch has a PR, the issue becomes
+  `agent-done`. If the dragon falls first, the issue goes back to `ready-for-agent`
+  for one more try, then to `ready-for-human`, with a comment each time. At most
+  N patrol dragons per realm at once (default 1). Works with GitHub (labels via
+  `gh`) and Jira (labels via its API); pull requests are found with `gh` either
+  way. Attempt counts live in `patrol.json` in the config folder.
 - **Pull requests.** In a realm whose tracker is GitHub, every holding with a
   dragon shows its branch's pull request under the signpost: `PR #142` with a CI
   dot (green passed, gold running, red failed, grey no checks), or `draft`,

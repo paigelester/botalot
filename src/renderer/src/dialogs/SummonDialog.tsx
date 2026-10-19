@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AgentInfo, AgentKind, Issue, IssueList, Project, SpawnRequest, Tracker, Worktree } from '@shared/types'
+import { TRACKER_NAME, issueBranch, issuePrompt, slugify } from '@shared/issues'
 import { api } from '../api'
 import { IssuePicker } from './IssuePicker'
 
@@ -13,32 +14,6 @@ interface Props {
 type Mode = 'main' | 'existing' | 'new'
 /** How a new holding gets its name. */
 type Naming = 'issue' | 'manual' | 'draft'
-
-const TRACKER_NAME: Record<Tracker['kind'], string> = { none: 'tracker', github: 'GitHub', jira: 'Jira' }
-
-/** Branch-safe slug from an issue title: drops leading tags like [WORK] or (You), cuts at a word boundary. */
-export function slugify(text: string, max = 40): string {
-  const slug = text
-    .replace(/^(\s*(\[[^\]]*\]|\([^)]*\)))+/, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  if (slug.length <= max) return slug
-  const cut = slug.slice(0, max + 1)
-  const atWord = cut.lastIndexOf('-')
-  return (atWord > max / 2 ? cut.slice(0, atWord) : cut.slice(0, max)).replace(/-+$/g, '')
-}
-
-function issueBranch(issue: Issue): string {
-  return `${issue.key}-${slugify(issue.title)}`
-}
-
-function issuePrompt(issue: Issue, tracker: Tracker['kind']): string {
-  const body = issue.body.trim()
-  const ref = tracker === 'github' ? `GitHub issue #${issue.key}` : `${TRACKER_NAME[tracker]} issue ${issue.key}`
-  const link = issue.url ? `\n${issue.url}` : ''
-  return `Work on ${ref}: ${issue.title}${link}\n\n${body || '(no description)'}\n\nThis worktree is on branch ${issueBranch(issue)}. Start by reading the relevant code and proposing a short plan before changing anything.`
-}
 
 function draftPrompt(branch: string, tracker: Tracker['kind']): string {
   const file =

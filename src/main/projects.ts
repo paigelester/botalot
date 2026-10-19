@@ -179,7 +179,7 @@ export class ProjectStore extends EventEmitter {
     return this.all()
   }
 
-  update(id: string, patch: Partial<Pick<Project, 'name' | 'tint' | 'worktreeLayout' | 'hidden' | 'tracker'>>): Project[] {
+  update(id: string, patch: Partial<Pick<Project, 'name' | 'tint' | 'worktreeLayout' | 'hidden' | 'tracker' | 'patrol'>>): Project[] {
     const p = this.get(id)
     if (p) Object.assign(p, patch)
     this.persist()

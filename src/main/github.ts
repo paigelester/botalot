@@ -97,3 +97,47 @@ export async function pullRequestFor(cwd: string, branch: string): Promise<PullR
     return null
   }
 }
+
+// ------------------------------------------------------------------ patrol
+
+/** gh without a shell: issue text and labels go in as plain arguments, never parsed by cmd.exe. Rejects on failure. */
+function gh(args: string[], cwd: string): Promise<string> {
+  return new Promise((resolve, reject) =>
+    execFile('gh', args, { cwd, windowsHide: true, timeout: 30_000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) =>
+      err ? reject(new Error((stderr?.toString() || err.message).trim())) : resolve(stdout.toString())
+    )
+  )
+}
+
+/** The oldest open issue carrying `label`, or null. */
+export async function githubOldestWithLabel(cwd: string, label: string): Promise<Issue | null> {
+  const out = await gh(['issue', 'list', '--state', 'open', '--label', label, '--limit', '100', '--json', 'number,title,body,labels,url,createdAt'], cwd)
+  const raw = JSON.parse(out) as { number: number; title: string; body: string; labels: { name: string }[]; url: string; createdAt: string }[]
+  raw.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  const i = raw[0]
+  if (!i) return null
+  return { key: String(i.number), title: i.title, body: i.body ?? '', labels: i.labels.map((l) => l.name), assignees: [], updatedAt: i.createdAt, url: i.url }
+}
+
+export async function githubLabels(cwd: string, key: string): Promise<string[]> {
+  const out = await gh(['issue', 'view', key, '--json', 'labels'], cwd)
+  return (JSON.parse(out) as { labels: { name: string }[] }).labels.map((l) => l.name)
+}
+
+export async function githubRelabel(cwd: string, key: string, remove: string[], add: string[]): Promise<void> {
+  const args = ['issue', 'edit', key]
+  for (const l of remove) args.push('--remove-label', l)
+  for (const l of add) args.push('--add-label', l)
+  await gh(args, cwd)
+}
+
+export async function githubComment(cwd: string, key: string, text: string): Promise<void> {
+  await gh(['issue', 'comment', key, '--body', text], cwd)
+}
+
+/** Create any of these labels the repo doesn't have yet. */
+export async function githubEnsureLabels(cwd: string, labels: { name: string; color: string; description: string }[]): Promise<void> {
+  const out = await gh(['label', 'list', '--limit', '500', '--json', 'name'], cwd)
+  const have = new Set((JSON.parse(out) as { name: string }[]).map((l) => l.name.toLowerCase()))
+  for (const l of labels) if (!have.has(l.name.toLowerCase())) await gh(['label', 'create', l.name, '--color', l.color, '--description', l.description], cwd)
+}

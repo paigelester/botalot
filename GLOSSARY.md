@@ -20,6 +20,13 @@ _Avoid_: Agent, bot
 A dragon whose session runs under Claude Code's background supervisor (`claude --bg`) rather than in the app's own terminal, so it outlives the app. Summoned by the app, so recorded, slain and buried by it.
 _Avoid_: Detached dragon, daemon
 
+**Patrol**:
+A realm's setting that picks up issues labelled `ready-for-agent` on its own and summons a dragon for each.
+_Avoid_: Auto-pickup, dispatcher, routine
+
+**Patrol dragon**:
+A background dragon patrol summoned for an issue. Marked ⚑.
+
 **Wild dragon**:
 A Claude Code background session the app did not summon, discovered through `claude agents --json`. The app shows and attaches to it but never records, slays or wakes it.
 _Avoid_: External session, foreign dragon

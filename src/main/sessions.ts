@@ -4,7 +4,7 @@ import { execFile } from 'child_process'
 import { existsSync } from 'fs'
 import { homedir } from 'os'
 import * as pty from 'node-pty'
-import { UNCLAIMED_REALM, type AgentKind, type Project, type PullRequestInfo, type Session, type SessionState, type SpawnRequest } from '@shared/types'
+import { UNCLAIMED_REALM, type AgentKind, type PatrolMark, type Project, type PullRequestInfo, type Session, type SessionState, type SpawnRequest } from '@shared/types'
 import { addWorktree, currentBranch, gitInfo, listWorktrees } from './git'
 import { randomName } from './names'
 import type { HookEvent } from './hooks'
@@ -94,6 +94,7 @@ export class SessionManager extends EventEmitter {
       startedAt: s.startedAt,
       agentSessionId: s.claudeSessionId,
       backgroundId: s.backgroundId,
+      patrol: s.patrol,
       lastSeenAt: Date.now()
     }
   }
@@ -124,6 +125,7 @@ export class SessionManager extends EventEmitter {
         startedAt: r.startedAt,
         claudeSessionId: r.agentSessionId,
         backgroundId: r.backgroundId,
+        patrol: r.patrol,
         attention: folderExists ? (getProject(r.projectId) ? undefined : 'Its realm is gone; bury it') : 'Holding folder is gone',
         resumable: folderExists && !!getProject(r.projectId)
       }
@@ -387,6 +389,15 @@ export class SessionManager extends EventEmitter {
       this.publish(l)
     }
     return { ...l.session }
+  }
+
+  /** Mark a dragon as patrol's, or record how its issue was settled. Recorded, so it survives a restart. */
+  setPatrol(id: string, mark: PatrolMark): void {
+    const l = this.live.get(id)
+    if (!l) return
+    l.session.patrol = mark
+    this.persist()
+    this.publish(l)
   }
 
   /** Attach the pull request for the dragon's branch (from PrWatcher). Not recorded: it is looked up again on launch. */

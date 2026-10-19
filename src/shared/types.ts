@@ -33,6 +33,22 @@ export interface Project {
   source: 'discovered' | 'manual'
   /** Issue tracker for this realm. Inferred as github when origin points at github.com, otherwise none. */
   tracker?: Tracker
+  /** Patrol: pick up issues labelled ready-for-agent on its own. Off when absent. */
+  patrol?: PatrolSettings
+}
+
+export interface PatrolSettings {
+  enabled: boolean
+  /** Most patrol dragons alive at once in this realm. */
+  max: number
+}
+
+/** What a patrol dragon is working on, and how its issue was settled once it was. */
+export interface PatrolMark {
+  issueKey: string
+  issueUrl?: string
+  /** done = PR opened; retried = died, issue handed back to patrol; human = died twice, handed to a human. */
+  settled?: 'done' | 'retried' | 'human'
 }
 
 export interface Worktree {
@@ -67,6 +83,8 @@ export interface Session {
    * (working with no activity, or waiting too long), never reported by the agent. Clears on new activity.
    */
   stuck?: string
+  /** Set on a patrol dragon: summoned by patrol for an issue rather than by you. */
+  patrol?: PatrolMark
   /** The pull request for this dragon's branch, when its realm is on GitHub and one exists. */
   pr?: PullRequestInfo
   /** Most recent hook event name, for debugging and the status strip. */
@@ -168,7 +186,7 @@ export interface DragonApi {
     listAll(): Promise<Project[]>
     /** Opens a folder picker and registers the chosen folder as a realm. */
     add(): Promise<Project | null>
-    update(id: string, patch: Partial<Pick<Project, 'name' | 'tint' | 'worktreeLayout' | 'hidden' | 'tracker'>>): Promise<Project[]>
+    update(id: string, patch: Partial<Pick<Project, 'name' | 'tint' | 'worktreeLayout' | 'hidden' | 'tracker' | 'patrol'>>): Promise<Project[]>
     /** Deletes the realm. Fails if dragons are still alive there. Returns every remaining realm. */
     remove(id: string): Promise<Project[]>
     worktrees(id: string): Promise<Worktree[]>

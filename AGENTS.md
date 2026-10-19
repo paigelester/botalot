@@ -13,7 +13,7 @@ Where scripts live:
 
 `npm run verify` runs every deterministic check. Exit 0 = the work passes. New checks are added to this script, not run separately.
 
-- Unit tests are `*.test.ts` files beside the code, run by Node's own test runner on the TypeScript as-is (`npm test`). Node resolves imports itself, so a tested module may import only with explicit `.ts` extensions, and nothing from `electron` or `node-pty`: keep logic worth testing in such a module.
+- Unit tests are `*.test.ts` files beside the code, run by Node's own test runner on the TypeScript as-is (`npm test`). Node resolves imports itself, so a tested module may import only with explicit `.ts` extensions, and nothing from `electron` or `node-pty`: keep logic worth testing in such a module. Node only strips types, so such modules also avoid `enum` and constructor parameter properties.
 
 - Verifying is the last step of the work, before committing: run `npm run verify` and report its output. Work isn't finished, and isn't committed, until it passes.
 - `verify` is for agents only. CI doesn't call it. `.github/workflows/ci.yml` runs on pushes to `main` and when a pull request is opened, updated or reopened, and calls each check as a reusable workflow (`on: workflow_call`), skipping a check when none of its inputs changed.

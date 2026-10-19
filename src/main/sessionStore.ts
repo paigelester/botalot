@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import type { AgentKind } from '@shared/types'
+import type { AgentKind, PatrolMark } from '@shared/types'
 import { configDir } from './config'
 
 /** What we remember about a dragon so it can come back after a restart. Written on creation, updated as it changes. */
@@ -17,6 +17,8 @@ export interface SessionRecord {
   agentSessionId?: string
   /** Set for a background dragon: its `claude agents` id. Absent for dragons that run in the app's pty. */
   backgroundId?: string
+  /** Set for a patrol dragon. */
+  patrol?: PatrolMark
   lastSeenAt: number
 }
 
