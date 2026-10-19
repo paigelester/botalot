@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import { randomUUID } from 'crypto'
+import { execFile } from 'child_process'
 import { existsSync } from 'fs'
 import { homedir } from 'os'
 import * as pty from 'node-pty'
@@ -40,7 +41,8 @@ export class SessionManager extends EventEmitter {
 
   constructor(
     private hookPort: number,
-    private hookSettingsPath: string
+    private hookSettingsPath: string,
+    private backgroundHookSettingsPath: string
   ) {
     super()
   }
@@ -58,6 +60,7 @@ export class SessionManager extends EventEmitter {
       isWorktree: s.isWorktree,
       startedAt: s.startedAt,
       agentSessionId: s.claudeSessionId,
+      backgroundId: s.backgroundId,
       lastSeenAt: Date.now()
     }
   }
@@ -66,7 +69,7 @@ export class SessionManager extends EventEmitter {
   private persist(): void {
     if (process.env.DRAGON_DEMO) return // fake dragons are never remembered
     // Wild dragons belong to Claude Code's own supervisor; the poller rediscovers them on every launch.
-    const owned = [...this.live.values()].filter((l) => !l.session.wildId)
+    const owned = [...this.live.values()].filter((l) => !l.session.wild)
     saveSessionRecords(owned.map((l) => this.toRecord(l.session)))
   }
 
@@ -87,9 +90,12 @@ export class SessionManager extends EventEmitter {
         stateSince: Date.now(),
         startedAt: r.startedAt,
         claudeSessionId: r.agentSessionId,
+        backgroundId: r.backgroundId,
         attention: folderExists ? (getProject(r.projectId) ? undefined : 'Its realm is gone; bury it') : 'Holding folder is gone',
         resumable: folderExists && !!getProject(r.projectId)
       }
+      // A background dragon may still be running: the first poll brings it back to life, or marks it fallen.
+      if (r.backgroundId && folderExists) session.attention = 'Looking for its background session…'
       this.live.set(r.id, { session, proc: null, scrollback: '', lastHookAt: 0, gitTimer: null, idleTimer: null })
     }
   }
@@ -141,6 +147,8 @@ export class SessionManager extends EventEmitter {
     const def = AGENTS[agent]
     const binary = this.resolveBinary(agent)
     if (!binary) throw new Error(`${def.label} is not installed (no "${def.binary}" on PATH).`)
+    if (req.background && agent !== 'claude') throw new Error('Only Claude Code dragons can run in the background.')
+    if (req.background && !req.prompt?.trim()) throw new Error('A background dragon needs a first quest: there is no terminal to type it in.')
 
     let cwd = project.path
     let branch = ''
@@ -180,11 +188,23 @@ export class SessionManager extends EventEmitter {
       attention: baseNote,
       startedAt: Date.now()
     }
+    if (req.background) {
+      // Dispatched before the dragon exists: if Claude Code refuses (untrusted folder, say), nothing is left behind.
+      const out = await runClaude(binary, ['--bg', '--name', name, '--settings', this.backgroundHookSettingsPath, prompt!], cwd)
+      const m = /backgrounded\s*·\s*([0-9a-f]{6,})/i.exec(plain(out))
+      if (!m) throw new Error('Claude Code did not start a background session: ' + (plain(out).trim().split(/\r?\n/)[0] || 'no output'))
+      session.backgroundId = m[1]
+    }
     const l: LiveSession = { session, proc: null, scrollback: '', lastHookAt: 0, gitTimer: null, idleTimer: null }
     this.live.set(id, l)
     // Recorded at birth, so a crash or restart never loses it.
     this.persist()
 
+    if (session.backgroundId) {
+      this.startGitPolling(l)
+      this.publish(l)
+      return { ...session }
+    }
     const args = def.args({ prompt, sessionId: id, name, hookSettingsPath: this.hookSettingsPath })
     this.launch(l, binary, args)
     return { ...session }
@@ -207,6 +227,11 @@ export class SessionManager extends EventEmitter {
     s.state = 'idle'
     s.stateSince = Date.now()
     s.exitCode = undefined
+    // A background dragon whose session is gone is woken in the app's own pty from here on.
+    if (s.backgroundId) {
+      s.backgroundId = undefined
+      this.persist()
+    }
     s.resumable = undefined
     s.attention = s.claudeSessionId || s.agent === 'copilot' ? 'Woken: resuming its earlier session' : 'Woken: continuing the most recent session in this folder'
     l.scrollback = ''
@@ -277,10 +302,14 @@ export class SessionManager extends EventEmitter {
       this.publish(l)
     })
 
-    if (l.gitTimer) clearInterval(l.gitTimer)
-    l.gitTimer = setInterval(() => void this.refreshGit(session.id), 15_000)
-    void this.refreshGit(session.id)
+    this.startGitPolling(l)
     this.publish(l)
+  }
+
+  private startGitPolling(l: LiveSession): void {
+    if (l.gitTimer) clearInterval(l.gitTimer)
+    l.gitTimer = setInterval(() => void this.refreshGit(l.session.id), 15_000)
+    void this.refreshGit(l.session.id)
   }
 
   /**
@@ -340,9 +369,17 @@ export class SessionManager extends EventEmitter {
     }
   }
 
-  kill(id: string): void {
+  async kill(id: string): Promise<void> {
     const l = this.live.get(id)
     if (!l) return
+    if (l.session.wild) return // not ours to slay
+    if (l.session.backgroundId) {
+      // The pty, if any, is only an attach client. Stopping the session is Claude Code's job; the poller reports the result.
+      const binary = this.resolveBinary('claude')
+      if (!binary) throw new Error('Claude Code is not installed (no "claude" on PATH).')
+      await runClaude(binary, ['stop', l.session.backgroundId], existsSync(l.session.cwd) ? l.session.cwd : homedir())
+      return
+    }
     if (l.proc) {
       try {
         l.proc.kill()
@@ -357,11 +394,30 @@ export class SessionManager extends EventEmitter {
     }
   }
 
-  /** Remove a dragon from the kingdom and forget its record. */
-  dismiss(id: string): void {
+  /** Remove a dragon from the kingdom and forget its record. A background dragon's session is removed too (`claude rm`). */
+  async dismiss(id: string): Promise<void> {
     const l = this.live.get(id)
     if (!l) return
-    if (l.proc) this.kill(id)
+    if (l.session.wild) return // the poller removes wild dragons when their sessions go
+    if (l.session.backgroundId) {
+      const binary = this.resolveBinary('claude')
+      if (binary) await runClaude(binary, ['rm', l.session.backgroundId], existsSync(l.session.cwd) ? l.session.cwd : homedir())
+    }
+    this.forget(id)
+  }
+
+  /** Drop a dragon from the kingdom without touching its session. */
+  private forget(id: string): void {
+    const l = this.live.get(id)
+    if (!l) return
+    if (l.proc) {
+      try {
+        l.proc.kill()
+      } catch {
+        /* already gone */
+      }
+      l.proc = null
+    }
     if (l.gitTimer) clearInterval(l.gitTimer)
     if (l.idleTimer) clearTimeout(l.idleTimer)
     this.live.delete(id)
@@ -389,9 +445,10 @@ export class SessionManager extends EventEmitter {
    * so both spellings are read.
    */
   handleHook(ev: HookEvent): void {
-    const l = this.live.get(ev.dragonId)
-    if (!l) return
     const p = ev.payload
+    // Background dragons post without a dragon id (see hooks/notify.js); find them by the agent's session id.
+    const l = ev.dragonId ? this.live.get(ev.dragonId) : this.findBackgroundBySessionId(p.session_id)
+    if (!l) return
     const str = (...keys: string[]): string => {
       for (const k of keys) if (typeof p[k] === 'string' && p[k]) return p[k] as string
       return ''
@@ -466,7 +523,7 @@ export class SessionManager extends EventEmitter {
   applyRegistry(entries: RegistryEntry[]): void {
     const claimed = new Set<number>()
     for (const l of this.live.values()) {
-      if (l.session.wildId || l.session.state === 'dead' || l.session.state === 'dormant' || l.session.agent !== 'claude' || !l.proc) continue
+      if (l.session.backgroundId || l.session.state === 'dead' || l.session.state === 'dormant' || l.session.agent !== 'claude' || !l.proc) continue
       let entry: RegistryEntry | undefined
       if (l.session.claudeSessionId) entry = entries.find((e) => e.sessionId === l.session.claudeSessionId)
       if (!entry) {
@@ -495,23 +552,46 @@ export class SessionManager extends EventEmitter {
     }
   }
 
-  // ------------------------------------------------------------ wild dragons
+  /** An owned background dragon by the agent's session id. Its background id is that UUID's first characters. */
+  private findBackgroundBySessionId(sid: unknown): LiveSession | undefined {
+    if (typeof sid !== 'string' || !sid) return undefined
+    for (const l of this.live.values()) {
+      const s = l.session
+      if (!s.backgroundId || s.wild) continue
+      if (s.claudeSessionId === sid || sid.startsWith(s.backgroundId)) return l
+    }
+    return undefined
+  }
+
+  // ------------------------------------------------------- background dragons
 
   /**
-   * Mirror Claude Code's background sessions (from `claude agents --json --all`) as wild dragons.
-   * Each poll is the full truth: wild dragons missing from it leave the kingdom.
+   * Apply a poll of Claude Code's background sessions (`claude agents --json --all`). Sessions Botalot
+   * dispatched update their own dragons; every other one is mirrored as a wild dragon. Each poll is the
+   * full truth: wild dragons missing from it leave the kingdom, and owned ones fall.
    */
   applyBackground(entries: BackgroundEntry[], projects: Project[]): void {
-    const ownedSessionIds = new Set<string>()
-    for (const l of this.live.values()) if (!l.session.wildId && l.session.claudeSessionId) ownedSessionIds.add(l.session.claudeSessionId)
+    const owned = new Map<string, LiveSession>()
+    const ptySessionIds = new Set<string>()
+    for (const l of this.live.values()) {
+      const s = l.session
+      if (s.backgroundId && !s.wild) owned.set(s.backgroundId, l)
+      else if (!s.backgroundId && s.claudeSessionId) ptySessionIds.add(s.claudeSessionId)
+    }
 
     const seen = new Set<string>()
     for (const e of entries) {
-      if (e.sessionId && ownedSessionIds.has(e.sessionId)) continue
+      const mine = owned.get(e.id)
+      if (mine) {
+        seen.add(mine.session.id)
+        this.applyOwnedBackground(mine, e)
+        continue
+      }
+      if (e.sessionId && ptySessionIds.has(e.sessionId)) continue
       const id = 'wild-' + e.id
       seen.add(id)
       const realm = realmFor(e.cwd, projects)
-      const { state, attention } = wildState(e)
+      const { state, attention } = backgroundState(e)
       let l = this.live.get(id)
       if (!l) {
         const session: Session = {
@@ -526,16 +606,15 @@ export class SessionManager extends EventEmitter {
           stateSince: Date.now(),
           attention,
           claudeSessionId: e.sessionId,
-          wildId: e.id,
+          backgroundId: e.id,
+          wild: true,
           pid: e.pid,
           startedAt: e.startedAt ?? Date.now()
         }
         l = { session, proc: null, scrollback: '', lastHookAt: 0, gitTimer: null, idleTimer: null }
         this.live.set(id, l)
-        const live = l
-        live.gitTimer = setInterval(() => void this.refreshGit(id), 15_000)
-        void this.refreshGit(id)
-        this.publish(live)
+        this.startGitPolling(l)
+        this.publish(l)
         continue
       }
       const s = l.session
@@ -558,13 +637,54 @@ export class SessionManager extends EventEmitter {
       this.publish(l)
     }
 
-    for (const [id, l] of this.live) if (l.session.wildId && !seen.has(id)) this.dismiss(id)
+    // An owned background dragon whose session is gone (removed elsewhere, or never came up) falls; waking it
+    // resumes the conversation in the app's own pty. A short grace covers a dispatch the CLI has not listed yet.
+    for (const l of owned.values()) {
+      const s = l.session
+      if (seen.has(s.id) || s.state === 'dead' || Date.now() - s.startedAt < 15_000) continue
+      s.state = 'dead'
+      s.stateSince = Date.now()
+      s.attention = 'Its background session is gone. Wake to resume it here.'
+      s.resumable = existsSync(s.cwd)
+      this.publish(l)
+    }
+
+    for (const [id, l] of this.live) if (l.session.wild && !seen.has(id)) this.forget(id)
   }
 
-  /** Open `claude attach <id>` in a pty for a wild dragon. Its output streams like any dragon's terminal. */
+  /** Update a background dragon Botalot dispatched from its poll entry. Recent hooks outrank the poll. */
+  private applyOwnedBackground(l: LiveSession, e: BackgroundEntry): void {
+    const s = l.session
+    let changed = false
+    if (e.sessionId && s.claudeSessionId !== e.sessionId) {
+      s.claudeSessionId = e.sessionId
+      this.persist()
+      changed = true
+    }
+    if (s.pid !== e.pid) {
+      s.pid = e.pid
+      changed = true
+    }
+    if (!l.gitTimer) this.startGitPolling(l)
+    const { state, attention } = backgroundState(e)
+    // Restored dragons start dormant; the first poll that finds their session brings them back whatever the hooks say.
+    const hooksRecent = Date.now() - l.lastHookAt < HOOK_AUTHORITY_MS
+    if ((s.state === 'dormant' || !hooksRecent) && (s.state !== state || s.attention !== attention)) {
+      if (s.state !== state) {
+        s.state = state
+        s.stateSince = Date.now()
+      }
+      s.attention = attention
+      s.resumable = state === 'dead' ? existsSync(s.cwd) : undefined
+      changed = true
+    }
+    if (changed) this.publish(l)
+  }
+
+  /** Open `claude attach <id>` in a pty for a background dragon. Its output streams like any dragon's terminal. */
   attach(id: string): void {
     const l = this.live.get(id)
-    if (!l || !l.session.wildId || l.proc) return
+    if (!l || !l.session.backgroundId || l.proc) return
     const binary = this.resolveBinary('claude')
     if (!binary) {
       l.scrollback = 'Claude Code is not installed (no "claude" on PATH).\r\n'
@@ -572,7 +692,7 @@ export class SessionManager extends EventEmitter {
       return
     }
     let file = binary
-    let args = ['attach', l.session.wildId]
+    let args = ['attach', l.session.backgroundId]
     if (/\.c?js$/i.test(file)) {
       args = [file, ...args]
       file = resolveOnPath('node') ?? 'node'
@@ -614,10 +734,10 @@ export class SessionManager extends EventEmitter {
     })
   }
 
-  /** Close a wild dragon's attach client. The background session keeps running under Claude Code. */
+  /** Close a background dragon's attach client. The session keeps running under Claude Code. */
   detach(id: string): void {
     const l = this.live.get(id)
-    if (!l || !l.session.wildId) return
+    if (!l || !l.session.backgroundId) return
     const proc = l.proc
     l.proc = null
     l.scrollback = ''
@@ -642,13 +762,17 @@ function realmFor(cwd: string, projects: Project[]): Project | undefined {
   return best
 }
 
-/** Map a background session's state and status onto a dragon state. */
-function wildState(e: BackgroundEntry): { state: SessionState; attention?: string } {
+/**
+ * Map a background session's state and status onto a dragon state. A session whose process has been
+ * stopped (`claude stop`, or the supervisor after an hour unattended) keeps its last state but loses
+ * its pid and status, so a missing pid means stopped.
+ */
+function backgroundState(e: BackgroundEntry): { state: SessionState; attention?: string } {
   const state = String(e.state ?? '').toLowerCase()
   const status = String(e.status ?? '').toLowerCase()
   if (state === 'blocked' || status === 'waiting') return { state: 'waiting', attention: describeWaitingFor(e.waitingFor) }
   if (state === 'failed') return { state: 'dead', attention: 'The background session failed' }
-  if (state === 'stopped') return { state: 'dead', attention: 'Stopped by Claude Code; its transcript is kept' }
+  if (state === 'stopped' || !e.pid) return { state: 'dead', attention: 'Stopped; its transcript is kept' }
   if (state === 'working' || status === 'busy') return { state: 'working' }
   return { state: 'idle', attention: state === 'done' ? 'Finished its task' : undefined }
 }
@@ -668,4 +792,21 @@ function describeWaitingFor(w: unknown): string {
   }
   text = text.replace(/[_-]+/g, ' ').trim()
   return text ? 'Waiting for ' + text : 'Waiting for you'
+}
+
+/**
+ * Run a one-shot claude command (`--bg`, `stop`, `rm`) and return its combined output.
+ * Never rejects: a failing command's output is the caller's evidence.
+ */
+function runClaude(binary: string, args: string[], cwd: string): Promise<string> {
+  let file = binary
+  if (/\.c?js$/i.test(file)) {
+    args = [file, ...args]
+    file = resolveOnPath('node') ?? 'node'
+  }
+  return new Promise((resolve) => {
+    execFile(file, args, { cwd, env: childEnv(), windowsHide: true, timeout: 60_000 }, (err, stdout, stderr) =>
+      resolve(`${stdout ?? ''}${stderr ?? ''}` || (err ? err.message : ''))
+    )
+  })
 }

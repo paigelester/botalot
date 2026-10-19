@@ -2,8 +2,8 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import type { SpawnRequest } from '@shared/types'
 import { ProjectStore } from './projects'
-import { HookServer } from './hooks'
-import { ensureClaudeHooks, listAgents } from './agents'
+import { HookServer, removeHookPortFile, writeHookPortFile } from './hooks'
+import { ensureClaudeBackgroundHooks, ensureClaudeHooks, listAgents } from './agents'
 import { SessionManager } from './sessions'
 import { RegistryWatcher } from './registry'
 import { BackgroundWatcher } from './background'
@@ -68,7 +68,7 @@ function registerIpc(): void {
   ipcMain.handle('projects:update', (_e, id: string, patch) => projects.update(id, patch))
   ipcMain.handle('projects:remove', (_e, id: string) => {
     // Wild dragons are not ours to slay; on the next poll they move to the unclaimed lands.
-    const owned = sessions.list().filter((s) => s.projectId === id && !s.wildId)
+    const owned = sessions.list().filter((s) => s.projectId === id && !s.wild)
     const alive = owned.filter((s) => s.state !== 'dead')
     if (alive.length > 0) throw new Error(alive.length + ' dragon(s) still live in that realm. Slay them first.')
     for (const s of owned) sessions.dismiss(s.id)
@@ -124,10 +124,11 @@ function registerIpc(): void {
 
 app.whenReady().then(async () => {
   const port = await hooks.start()
+  writeHookPortFile(port)
   const settingsPath = ensureClaudeHooks()
   projects = new ProjectStore()
   void projects.inferTrackers()
-  sessions = new SessionManager(port, settingsPath)
+  sessions = new SessionManager(port, settingsPath, ensureClaudeBackgroundHooks())
   sessions.restore((pid) => projects.get(pid))
 
   hooks.on('event', (ev) => sessions.handleHook(ev))
@@ -228,6 +229,7 @@ app.on('before-quit', () => {
   registry.stop()
   background.stop()
   hooks.stop()
+  removeHookPortFile()
 })
 
 app.on('window-all-closed', () => {

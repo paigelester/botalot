@@ -67,6 +67,16 @@ or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot logi
   what they wait for. Clicking one runs `claude attach <id>` in the panel; closing
   the panel closes only that client, and the session keeps running. Wild dragons
   are never recorded, slain or woken by the app; Claude Code's supervisor owns them.
+- **Background dragons.** Tick **Background** when summoning a Claude dragon and the
+  app runs `claude --bg --name <dragon> "<quest>"` in the chosen folder instead of
+  a terminal of its own, so the dragon keeps working after Botalot quits. It is
+  tracked by the same poll as wild dragons, plus hooks: the background worker does
+  not inherit the app's environment, so its hook settings
+  (`dragon-hooks-background.json`) tell `hooks/notify.js` to read the app's current
+  port from the `hook-port` file in the config folder, and events are matched by
+  session id. Click it to attach; **Slay** runs `claude stop`, **Bury** runs
+  `claude rm`. On relaunch it comes back live. If its session is gone, it falls,
+  and waking it resumes the conversation in the app's own terminal.
 
 ## Pixel-art dragons
 

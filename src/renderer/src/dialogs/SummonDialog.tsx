@@ -76,8 +76,10 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [background, setBackground] = useState(false)
 
   const project = projects.find((p) => p.id === projectId)
+  const runInBackground = background && agent === 'claude'
   const tracker: Tracker['kind'] = project?.tracker?.kind ?? 'none'
   const trackerReady = tracker !== 'none'
   const dragonSlug = slugify(name) || 'dragon'
@@ -162,9 +164,20 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
     } else {
       target = { kind: 'main' }
     }
+    if (runInBackground && !prompt.trim()) {
+      setError('A background dragon needs a first quest: there is no terminal to type it in.')
+      return
+    }
     setBusy(true)
     try {
-      await api.sessions.spawn({ projectId: project.id, agent, target, prompt: prompt.trim() || undefined, name: name.trim() || undefined })
+      await api.sessions.spawn({
+        projectId: project.id,
+        agent,
+        target,
+        prompt: prompt.trim() || undefined,
+        name: name.trim() || undefined,
+        background: runInBackground || undefined
+      })
       onSummoned()
     } catch (err) {
       setError((err as Error).message.replace(/^Error invoking remote method '[^']+': Error: /, ''))
@@ -301,7 +314,24 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
 
         <label>
           First quest (optional opening prompt)
-          <textarea rows={5} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Leave empty to start idle and type in the terminal." />
+          <textarea
+            rows={5}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={runInBackground ? 'What should it do? A background dragon starts on this right away.' : 'Leave empty to start idle and type in the terminal.'}
+          />
+        </label>
+
+        <label className="radio">
+          <input type="checkbox" checked={runInBackground} disabled={agent !== 'claude'} onChange={(e) => setBackground(e.target.checked)} />
+          <span>
+            <b>Background</b> — keeps flying after Botalot quits
+            <span className="hint block">
+              {agent === 'claude'
+                ? 'Runs as a Claude Code background session (claude --bg). Click it to attach; Slay stops it, Bury removes it.'
+                : 'Only Claude Code dragons can run in the background.'}
+            </span>
+          </span>
         </label>
 
         {error ? <div className="error">{error}</div> : null}

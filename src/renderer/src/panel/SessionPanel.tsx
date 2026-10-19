@@ -26,13 +26,16 @@ function hex(tint: number): string {
 /** Side panel: themed status strip over a real terminal. */
 export function SessionPanel({ session, project, wide, onClose, onToggleWide }: Props) {
   const alive = session.state !== 'dead' && session.state !== 'dormant'
-  const wild = !!session.wildId
-  // A wild dragon's terminal is a `claude attach` client, open only while its panel is.
+  const wild = !!session.wild
+  const background = !!session.backgroundId
+  // A background dragon's terminal is a `claude attach` client, open only while its panel is. An owned one
+  // that has fallen is not attached, so waking it can start its own terminal.
+  const attachable = background && (wild || alive)
   useEffect(() => {
-    if (!wild) return
+    if (!attachable) return
     void api.sessions.attach(session.id)
     return () => void api.sessions.detach(session.id)
-  }, [session.id, wild])
+  }, [session.id, attachable])
   const [waking, setWaking] = useState(false)
   const [wakeError, setWakeError] = useState<string | null>(null)
   async function wake() {
@@ -58,8 +61,12 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
           <span className={'badge badge-' + session.state}>{STATE_LABEL[session.state]}</span>
           <span className={'badge badge-agent badge-agent-' + session.agent}>{session.agent === 'copilot' ? 'Copilot' : 'Claude'}</span>
           {wild ? (
-            <span className="badge badge-wild" title={'Background session ' + session.wildId + ', started outside Botalot'}>
+            <span className="badge badge-wild" title={'Background session ' + session.backgroundId + ', started outside Botalot'}>
               Wild
+            </span>
+          ) : background ? (
+            <span className="badge badge-background" title={'Background session ' + session.backgroundId + '; keeps running when Botalot quits'}>
+              Background
             </span>
           ) : null}
           <span className="spacer" />
@@ -91,7 +98,11 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
               Lives in Claude Code's background
             </span>
           ) : alive ? (
-            <button className="danger small" onClick={() => void api.sessions.kill(session.id)} title="Kill the session">
+            <button
+              className="danger small"
+              onClick={() => void api.sessions.kill(session.id)}
+              title={background ? 'Stop the background session (claude stop)' : 'Kill the session'}
+            >
               Slay
             </button>
           ) : (
@@ -107,7 +118,7 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
                   void api.sessions.dismiss(session.id)
                   onClose()
                 }}
-                title="Remove from the kingdom and forget it"
+                title={background ? 'Remove the background session (claude rm) and forget it' : 'Remove from the kingdom and forget it'}
               >
                 Bury
               </button>

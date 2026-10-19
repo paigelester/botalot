@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'http'
 import { EventEmitter } from 'events'
-import { writeFileSync } from 'fs'
+import { rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import { configDir } from './config'
@@ -70,13 +70,42 @@ export function hookScriptPath(): string {
  * from the app get these hooks. The user's own settings are never touched.
  */
 export function writeHookSettings(events: string[]): string {
+  return writeSettingsFile(events, 'dragon-hooks.json', '')
+}
+
+/**
+ * The settings file for background dragons. Their sessions outlive the app and do not inherit its
+ * environment, so the hook reads the app's current port from hookPortFile() on every event.
+ */
+export function writeBackgroundHookSettings(events: string[]): string {
+  return writeSettingsFile(events, 'dragon-hooks-background.json', ` --port-file "${hookPortFile().replace(/\\/g, '/')}"`)
+}
+
+function writeSettingsFile(events: string[], name: string, extraArgs: string): string {
   const hooks: Record<string, unknown[]> = {}
   for (const ev of events) {
-    const hook = { type: 'command', command: `node "${hookScriptPath()}" --event ${ev}`, timeout: 5 }
+    const hook = { type: 'command', command: `node "${hookScriptPath()}" --event ${ev}${extraArgs}`, timeout: 5 }
     hooks[ev] = [/PreToolUse|PostToolUse|PermissionRequest/.test(ev) ? { matcher: '', hooks: [hook] } : { hooks: [hook] }]
   }
   const settings = { hooks }
-  const path = join(configDir(), 'dragon-hooks.json')
+  const path = join(configDir(), name)
   writeFileSync(path, JSON.stringify(settings, null, 2), 'utf8')
   return path
+}
+
+/** Holds the hook server's port while the app runs; removed on quit so stale hooks post nowhere. */
+export function hookPortFile(): string {
+  return join(configDir(), 'hook-port')
+}
+
+export function writeHookPortFile(port: number): void {
+  try {
+    writeFileSync(hookPortFile(), String(port), 'utf8')
+  } catch (err) {
+    console.warn('could not write hook port file', err)
+  }
+}
+
+export function removeHookPortFile(): void {
+  rmSync(hookPortFile(), { force: true })
 }

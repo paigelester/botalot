@@ -69,10 +69,15 @@ export interface Session {
   /** True when the dragon can be woken: dormant or dead, with its folder still on disk. */
   resumable?: boolean
   /**
-   * Set only on a wild dragon: a background Claude Code session Botalot did not summon.
-   * Its `claude agents` id, used to attach. Wild dragons are never recorded or woken by the app.
+   * Set when the dragon is a Claude Code background session: its `claude agents` id, used to attach,
+   * stop and remove it. The session runs under Claude Code's supervisor, not in a pty of the app.
    */
-  wildId?: string
+  backgroundId?: string
+  /**
+   * A wild dragon: a background session Botalot did not summon. Never recorded, slain or woken by the app.
+   * Background dragons Botalot summoned itself have backgroundId without wild.
+   */
+  wild?: boolean
   pid?: number
   startedAt: number
   exitCode?: number
@@ -134,6 +139,8 @@ export interface SpawnRequest {
   target: SpawnTarget
   prompt?: string
   name?: string
+  /** Claude only: run as a background session (`claude --bg`) that keeps going after the app quits. Needs a prompt. */
+  background?: boolean
 }
 
 export interface DragonApi {
@@ -171,9 +178,9 @@ export interface DragonApi {
     write(id: string, data: string): void
     resize(id: string, cols: number, rows: number): void
     scrollback(id: string): Promise<string>
-    /** Wild dragons only: run `claude attach` in a pty so the panel's terminal shows the session. */
+    /** Background dragons only: run `claude attach` in a pty so the panel's terminal shows the session. */
     attach(id: string): Promise<void>
-    /** Wild dragons only: close the attach client. The background session keeps running. */
+    /** Background dragons only: close the attach client. The background session keeps running. */
     detach(id: string): Promise<void>
     refreshGit(id: string): Promise<Session | undefined>
     onUpdate(cb: (session: Session) => void): () => void

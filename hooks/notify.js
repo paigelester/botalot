@@ -1,16 +1,31 @@
 // Claude Code hook forwarder. Reads the hook payload from stdin and posts it to the
 // Botalot app over localhost. Never blocks Claude: exits 0 on any failure.
 const http = require('http')
+const fs = require('fs')
 
-const port = Number(process.env.DRAGON_PORT || 0)
-const dragonId = process.env.DRAGON_SESSION || ''
-if (!port || !dragonId) process.exit(0)
+function arg(name) {
+  const i = process.argv.indexOf(name)
+  return i !== -1 ? process.argv[i + 1] : undefined
+}
+
+// Dragons in the app's pty get DRAGON_PORT and DRAGON_SESSION in their environment. Background dragons
+// run under Claude Code's supervisor, which does not pass the environment on, so their hook config names
+// a file holding the app's current port instead, and the app matches them by the payload's session_id.
+const portFile = arg('--port-file')
+let port = Number(process.env.DRAGON_PORT || 0)
+let dragonId = process.env.DRAGON_SESSION || ''
+if (!port && portFile) {
+  try {
+    port = Number(fs.readFileSync(portFile, 'utf8').trim())
+  } catch {
+    process.exit(0) // the app is not running
+  }
+  dragonId = ''
+}
+if (!port || (!dragonId && !portFile)) process.exit(0)
 
 // `--event <Name>` is passed from the hook config so camelCase payloads (Copilot CLI) are self-describing too.
-const eventArg = (() => {
-  const i = process.argv.indexOf('--event')
-  return i !== -1 ? process.argv[i + 1] : undefined
-})()
+const eventArg = arg('--event')
 
 let raw = ''
 process.stdin.setEncoding('utf8')

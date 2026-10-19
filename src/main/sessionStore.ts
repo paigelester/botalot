@@ -15,6 +15,8 @@ export interface SessionRecord {
   startedAt: number
   /** The agent's own session id, once known. */
   agentSessionId?: string
+  /** Set for a background dragon: its `claude agents` id. Absent for dragons that run in the app's pty. */
+  backgroundId?: string
   lastSeenAt: number
 }
 

@@ -16,6 +16,10 @@ _Avoid_: Worktree (in UI text)
 One coding-agent session shown on the map.
 _Avoid_: Agent, bot
 
+**Background dragon**:
+A dragon whose session runs under Claude Code's background supervisor (`claude --bg`) rather than in the app's own terminal, so it outlives the app. Summoned by the app, so recorded, slain and buried by it.
+_Avoid_: Detached dragon, daemon
+
 **Wild dragon**:
 A Claude Code background session the app did not summon, discovered through `claude agents --json`. The app shows and attaches to it but never records, slays or wakes it.
 _Avoid_: External session, foreign dragon

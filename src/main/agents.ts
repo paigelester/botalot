@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import type { AgentInfo, AgentKind } from '@shared/types'
-import { hookScriptPath, writeHookSettings } from './hooks'
+import { hookScriptPath, writeBackgroundHookSettings, writeHookSettings } from './hooks'
 
 /** node-pty on Windows needs a full executable path, so resolve bare names through where.exe. */
 export function resolveOnPath(name: string): string | null {
@@ -160,6 +160,11 @@ export async function ensureCopilotHooks(): Promise<string | undefined> {
 /** Claude's hook settings file, with the event name passed as an argument so payloads are self-describing. */
 export function ensureClaudeHooks(): string {
   return writeHookSettings(CLAUDE_EVENTS)
+}
+
+/** Claude's hook settings for background dragons, which find the app through the port file. */
+export function ensureClaudeBackgroundHooks(): string {
+  return writeBackgroundHookSettings(CLAUDE_EVENTS)
 }
 
 /**

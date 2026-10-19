@@ -68,8 +68,8 @@ export class Dragon extends Container {
       style: {
         fontFamily: 'Georgia, serif',
         fontSize: 12,
-        fill: session.wildId ? 0xa8e6a1 : 0xf6edd6,
-        fontStyle: session.wildId ? 'italic' : 'normal',
+        fill: session.wild ? 0xa8e6a1 : 0xf6edd6,
+        fontStyle: session.wild ? 'italic' : 'normal',
         stroke: { color: 0x1a1024, width: 3 }
       }
     })
