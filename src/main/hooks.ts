@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'http'
 import { EventEmitter } from 'events'
 import { readFileSync, rmSync, writeFileSync } from 'fs'
+import { homedir } from 'os'
 import { join } from 'path'
 import { app } from 'electron'
 import { configDir } from './config'
@@ -87,10 +88,30 @@ function writeSettingsFile(events: string[], name: string, extraArgs: string): s
     const hook = { type: 'command', command: `node "${hookScriptPath()}" --event ${ev}${extraArgs}`, timeout: 5 }
     hooks[ev] = [/PreToolUse|PostToolUse|PermissionRequest/.test(ev) ? { matcher: '', hooks: [hook] } : { hooks: [hook] }]
   }
-  const settings = { hooks }
+  // The status line input carries the subscription quota, which no hook does. A dragon's status line is
+  // the forwarder, which also prints the user's own status line so theirs still shows.
+  const own = userStatusLine()
+  const chain = own ? ` --chain ${Buffer.from(own, 'utf8').toString('base64')}` : ''
+  const statusLine = { type: 'command', command: `node "${hookScriptPath()}" --event StatusLine${extraArgs}${chain}`, padding: 0 }
+  const settings = { hooks, statusLine }
   const path = join(configDir(), name)
   writeFileSync(path, JSON.stringify(settings, null, 2), 'utf8')
   return path
+}
+
+/**
+ * The status line command from the user's own Claude Code settings, if any. Read when the app starts,
+ * so a change to it reaches dragons after a restart.
+ */
+function userStatusLine(): string | null {
+  const dir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
+  try {
+    const settings = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')) as { statusLine?: { type?: string; command?: unknown } }
+    const sl = settings.statusLine
+    return sl && sl.type === 'command' && typeof sl.command === 'string' && sl.command.trim() ? sl.command : null
+  } catch {
+    return null
+  }
 }
 
 /**

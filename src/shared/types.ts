@@ -1,4 +1,5 @@
 // Types shared between the Electron main process and the renderer.
+import type { Quota } from './quota.ts'
 
 /** dormant = recorded from an earlier run, not running now; wake it to resume the agent's session. */
 export type SessionState = 'working' | 'waiting' | 'idle' | 'dead' | 'dormant'
@@ -238,5 +239,10 @@ export interface DragonApi {
   app: {
     /** Show the waiting count on the taskbar icon. `png` is the badge image as a data URL; count 0 clears it. */
     setBadge(count: number, png: string | null): void
+  }
+  quota: {
+    /** The latest subscription quota reading from any Claude dragon, or null if none has reported one. */
+    get(): Promise<Quota | null>
+    onUpdate(cb: (quota: Quota) => void): () => void
   }
 }

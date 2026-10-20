@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import type { PullRequestInfo, SpawnRequest } from '@shared/types'
+import { parseRateLimits, type Quota } from '@shared/quota'
 import { ProjectStore } from './projects'
 import { HookServer, removeHookPortFile, writeHookPortFile } from './hooks'
 import { ensureClaudeBackgroundHooks, ensureClaudeHooks, listAgents } from './agents'
@@ -34,6 +35,8 @@ const registry = new RegistryWatcher()
 const background = new BackgroundWatcher()
 let prs: PrWatcher | null = null
 let patrolTimer: NodeJS.Timeout | null = null
+/** The latest quota reading from any dragon's status line; null until one arrives. */
+let quota: Quota | null = null
 const PATROL_MS = 2 * 60_000
 
 function send(channel: string, ...args: unknown[]): void {
@@ -131,6 +134,7 @@ function registerIpc(): void {
 
   ipcMain.handle('names:random', () => sessions.randomName())
   ipcMain.handle('agents:list', () => listAgents())
+  ipcMain.handle('quota:get', () => quota)
   ipcMain.on('app:badge', (_e, count: number, png: string | null) => herald.setBadge(count, png))
 }
 
@@ -146,7 +150,14 @@ app.whenReady().then(async () => {
   sessions = new SessionManager(port, settingsPath, ensureClaudeBackgroundHooks())
   sessions.restore((pid) => projects.get(pid))
 
-  hooks.on('event', (ev) => sessions.handleHook(ev))
+  // Status line readings carry the account's quota, not a dragon's activity, so they skip the session.
+  hooks.on('event', (ev) => {
+    if (ev.payload.hook_event_name !== 'StatusLine') return sessions.handleHook(ev)
+    const q = parseRateLimits(ev.payload)
+    if (!q) return
+    quota = q
+    send('quota:update', q)
+  })
   registry.on('registry', (entries) => sessions.applyRegistry(entries))
   registry.start()
   // The demo kingdom is fictional, so real background sessions stay out of it.

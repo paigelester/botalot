@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { DragonApi, JiraSite, Project, Session, SpawnRequest } from '@shared/types'
+import type { Quota } from '@shared/quota'
 
 function subscribe<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
   const handler = (_e: Electron.IpcRendererEvent, ...args: unknown[]) => cb(...(args as T))
@@ -44,6 +45,10 @@ const api: DragonApi = {
   },
   app: {
     setBadge: (count, png) => ipcRenderer.send('app:badge', count, png)
+  },
+  quota: {
+    get: () => ipcRenderer.invoke('quota:get'),
+    onUpdate: (cb) => subscribe<[Quota]>('quota:update', cb)
   },
   jira: {
     sites: (): Promise<JiraSite[]> => ipcRenderer.invoke('jira:sites'),

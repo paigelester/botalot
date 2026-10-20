@@ -133,6 +133,44 @@ select:focus {
 .pill-working {
   color: var(--working);
 }
+.quota {
+  display: flex;
+  gap: 12px;
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.quota-meter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  --quota-fill: var(--working);
+}
+.quota-meter.quota-mid {
+  --quota-fill: var(--gold);
+}
+.quota-meter.quota-high {
+  --quota-fill: var(--danger);
+}
+.quota-bar {
+  width: 60px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+.quota-fill {
+  display: block;
+  height: 100%;
+  background: var(--quota-fill);
+}
+.quota-pct {
+  color: var(--quota-fill);
+  font-variant-numeric: tabular-nums;
+}
+.quota-reset {
+  opacity: 0.75;
+}
 .pill-waiting {
   color: var(--ink-dim);
 }

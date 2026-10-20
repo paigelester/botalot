@@ -6,6 +6,7 @@ import { SessionPanel } from './panel/SessionPanel'
 import { WaitingPanel } from './panel/WaitingPanel'
 import { SummonDialog } from './dialogs/SummonDialog'
 import { RealmsDialog } from './dialogs/RealmsDialog'
+import { QuotaGauge } from './QuotaGauge'
 
 export function App() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -93,6 +94,7 @@ export function App() {
             {sessionList.length} dragons{dormant ? ', ' + dormant + ' dormant' : ''}
           </span>
         </div>
+        <QuotaGauge />
         <span className="spacer" />
         <button className="ghost" onClick={() => setRealms(true)}>
           Realms

@@ -10,7 +10,7 @@ const shared = ['package.json', 'package-lock.json', '.nvmrc', '.github/workflow
 // Each check's inputs. An entry ending in `/` matches everything under that folder.
 const checks = {
   typecheck: ['src/', 'electron.vite.config.ts', 'tsconfig.json', '.github/workflows/typecheck.yml'],
-  test: ['src/', 'tsconfig.json', '.github/workflows/test.yml'],
+  test: ['src/', 'hooks/', 'tsconfig.json', '.github/workflows/test.yml'],
   build: ['src/', 'hooks/', 'electron.vite.config.ts', 'electron-builder.yml', 'tsconfig.json', '.github/workflows/build.yml']
 }
 
