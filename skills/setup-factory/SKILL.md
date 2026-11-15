@@ -11,8 +11,8 @@ Run every `botalot` command from the repo being set up (`npx botalot` when it is
 
 ## Steps
 
-1. **Check the contract.** Run `botalot check`. Done when it passes (go to step 3) or lists what's wrong.
-2. **Write or fix the contract.** `.factory/contract.json` says what the repo provides. Fill it from the repo itself, never from guesses:
+1. **Run setup.** Run `botalot setup`. It writes a first `.factory/contract.json` from the repo's own scripts if there is none, checks it, and creates the labels. Done when you have its output.
+2. **Correct the contract.** Setup's draft is a start, not the answer. Check each field against the repo itself, never from guesses:
    - `botalot`: the installed version (`botalot --help` prints it).
    - `stacks`: the stacks the repo uses, from the names `botalot list` prints.
    - `commands.verify`: every check a change must pass (lint, format check, type check, tests, build), read from the repo's `package.json` scripts, `Makefile` or CI workflow. Run each one and keep only commands that exist and exit 0 on a clean checkout. If one fails on a clean checkout, tell the human instead of leaving it out quietly.

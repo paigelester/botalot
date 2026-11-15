@@ -12,10 +12,12 @@ import { runShell } from "../cli/lib/exec.mjs";
 import { topLevel, worktreeTree } from "../cli/lib/git.mjs";
 import { OPEN_STATUSES, allStates, isAlive, loadState } from "../cli/lib/runs.mjs";
 import { summary } from "../cli/lib/report.mjs";
+import { setupRepo } from "../cli/lib/setup.mjs";
 import { syncLabels } from "../cli/lib/tickets.mjs";
 
 const HELP = `botalot ${BRAIN_VERSION}
 
+  botalot setup [--no-labels]           Set this repo up: write its contract if it has none, and its labels
   botalot check [workflow]              Check this repo's contract (${CONTRACT_FILE})
   botalot start <workflow> <ticket>     Start a run for a ticket, e.g. botalot start implement 12
                 [--owner human|agent]   Override the ticket's owner label
@@ -58,6 +60,12 @@ function waitingRunHere(id) {
 }
 
 const commands = {
+  async setup() {
+    const { ok, lines } = setupRepo(topLevel(process.cwd()), { labels: !flags.has("--no-labels") });
+    console.log(lines.join("\n"));
+    process.exit(ok ? 0 : 1);
+  },
+
   async check() {
     const repo = topLevel(process.cwd());
     const { problems } = checkContract(repo, rest[0]);

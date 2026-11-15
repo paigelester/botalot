@@ -17,6 +17,8 @@ export function RealmsDialog({ onClose }: Props) {
   const [all, setAll] = useState<Project[]>([])
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** What `botalot setup` last printed for a realm; `busy` while it runs. */
+  const [setup, setSetup] = useState<{ id: string; busy: boolean; ok?: boolean; output?: string } | null>(null)
 
   async function reload() {
     setAll(await api.projects.listAll())
@@ -42,6 +44,15 @@ export function RealmsDialog({ onClose }: Props) {
       setError((err as Error).message.replace(/^Error invoking remote method '[^']+': Error: /, ''))
     }
     setConfirmId(null)
+  }
+
+  async function runSetup(id: string) {
+    setSetup({ id, busy: true })
+    try {
+      setSetup({ id, busy: false, ...(await api.projects.setup(id)) })
+    } catch (err) {
+      setSetup({ id, busy: false, ok: false, output: (err as Error).message })
+    }
   }
 
   async function patch(id: string, p: Partial<Pick<Project, 'name' | 'tint' | 'worktreeLayout' | 'hidden' | 'tracker' | 'patrol'>>) {
@@ -78,6 +89,16 @@ export function RealmsDialog({ onClose }: Props) {
                     <option value="sibling">sibling folder</option>
                     <option value="inside">.claude/worktrees</option>
                   </select>
+                  {p.isGit ? (
+                    <button
+                      className="ghost small"
+                      disabled={setup?.id === p.id && setup.busy}
+                      onClick={() => void runSetup(p.id)}
+                      title="Runs `botalot setup` here: writes .factory/contract.json if the realm has none, and creates the factory's labels on GitHub"
+                    >
+                      {setup?.id === p.id && setup.busy ? 'Setting up…' : 'Set up'}
+                    </button>
+                  ) : null}
                   <button className="ghost small" onClick={() => void patch(p.id, { hidden: !p.hidden })}>
                     {p.hidden ? 'Show' : 'Hide'}
                   </button>
@@ -96,6 +117,7 @@ export function RealmsDialog({ onClose }: Props) {
                     </button>
                   )}
                 </div>
+                {setup?.id === p.id && setup.output ? <pre className={'realm-setup' + (setup.ok ? '' : ' realm-setup-failed')}>{setup.output}</pre> : null}
                 {t.kind !== 'none' ? (
                   <div className="realm-patrol">
                     <label className="radio" title="Every couple of minutes while Botalot runs, start a factory run of the implement workflow for the oldest ticket labelled factory:ready and factory:agent-owned. The realm needs a .factory/contract.json.">

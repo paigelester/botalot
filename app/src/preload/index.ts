@@ -18,6 +18,7 @@ const api: DragonApi = {
     remove: (id) => ipcRenderer.invoke('projects:remove', id),
     worktrees: (id) => ipcRenderer.invoke('projects:worktrees', id),
     remoteBase: (id) => ipcRenderer.invoke('projects:remoteBase', id),
+    setup: (id) => ipcRenderer.invoke('projects:setup', id),
     issues: (id, search) => ipcRenderer.invoke('projects:issues', id, search),
     onChanged: (cb) => subscribe<[Project[]]>('projects:changed', cb)
   },

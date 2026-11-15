@@ -159,6 +159,8 @@ export interface DragonApi {
     worktrees(id: string): Promise<Worktree[]>
     /** Where a new holding's branch would start: the remote default branch, or null if there is no remote. */
     remoteBase(id: string): Promise<string | null>
+    /** Set the realm up for the factory (`botalot setup`): write its contract if it has none, and its labels. */
+    setup(id: string): Promise<{ ok: boolean; output: string }>
     /** Open issues for the realm from its tracker. `search` asks the tracker itself rather than listing recent ones. */
     issues(id: string, search?: string): Promise<IssueList>
     onChanged(cb: (projects: Project[]) => void): () => void

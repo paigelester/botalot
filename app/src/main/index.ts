@@ -13,7 +13,7 @@ import { PrWatcher } from './prWatcher'
 import { Patrol } from './patrol'
 import { filePatrolMemory, patrolTrackerFor } from './patrolTrackers'
 import { addWorktree, listWorktrees, remoteDefaultBranch } from './git'
-import { RunsWatcher, continueRun, shareQuota, startRun, stopRun } from './runs'
+import { RunsWatcher, continueRun, setupRealm, shareQuota, startRun, stopRun } from './runs'
 import { issueBranch } from '@shared/issues'
 import { samePath } from '@shared/runs'
 import { listGitHubIssues } from './github'
@@ -100,6 +100,11 @@ function registerIpc(): void {
     const t = p.tracker ?? { kind: 'none' as const }
     if (t.kind === 'github') return listGitHubIssues(p.path, search)
     return { tracker: 'none', issues: [] }
+  })
+  ipcMain.handle('projects:setup', async (_e, id: string) => {
+    const p = projects.get(id)
+    if (!p) throw new Error('Unknown realm')
+    return setupRealm(p.path)
   })
   ipcMain.handle('projects:remoteBase', async (_e, id: string) => {
     const p = projects.get(id)

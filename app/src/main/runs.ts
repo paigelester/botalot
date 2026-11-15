@@ -171,6 +171,11 @@ export function stopRun(run: RunView, onExit?: (code: number, output: string) =>
   driver(['stop', run.id], homedir(), run.mainRepo, onExit)
 }
 
+/** Set a realm up for the factory (`botalot setup`): its contract and its labels. Resolves with what the CLI printed. */
+export function setupRealm(repo: string): Promise<{ ok: boolean; output: string }> {
+  return new Promise((resolve) => driver(['setup'], repo, repo, (code, output) => resolve({ ok: code === 0, output })))
+}
+
 /**
  * Hand the driver the account's latest quota reading, so unattended runs pause when the 5-hour window is
  * nearly spent even if no agent step has reported one lately. The driver's file keeps seconds, not milliseconds.

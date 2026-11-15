@@ -784,6 +784,24 @@ button.pill:not(.pill-alert) {
   font-size: 12px;
 }
 
+/* What `botalot setup` printed for a realm, under its row in the Realms dialog */
+.realm-setup {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  max-height: 180px;
+  overflow: auto;
+  background: var(--panel-2);
+  border-left: 3px solid var(--idle);
+  border-radius: 4px;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.realm-setup-failed {
+  border-left-color: var(--danger);
+}
+
 /* Patrol settings under a realm in the Realms dialog */
 .realm-patrol {
   display: flex;

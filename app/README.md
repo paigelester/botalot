@@ -126,7 +126,9 @@ dependency is driven by its own pinned copy; any other realm by the copy that
 ships with the app. The packaged exe runs the CLI itself, so it needs no Node.
 
 A realm can run a workflow only once it has a contract, `.factory/contract.json`,
-that passes `botalot check`, and its GitHub repo has the factory's labels. See
+that passes `botalot check`, and its GitHub repo has the factory's labels. **Set up**
+beside a realm in the Realms dialog runs `botalot setup` there, which writes a first
+contract from the realm's own scripts and creates the labels, and shows what it did. See
 the [root README](../README.md).
 
 ## Pixel-art dragons

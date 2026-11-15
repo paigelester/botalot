@@ -44,7 +44,13 @@ A failed check or a `must` review finding goes back to build, up to the workflow
 
    `npm install` then brings it to any machine or cloud agent that works on the repo, and `npx botalot` runs it. A repo with no `package.json` gets a small one for this.
 
-2. **Write the repo's contract**, `.factory/contract.json`. A workflow refuses to start unless the contract meets its needs:
+2. **Set the repo up:**
+
+   ```bash
+   npx botalot setup
+   ```
+
+   It writes a first contract, `.factory/contract.json`, from what the repo already says about itself (its `package.json` scripts and dependencies), checks it, and creates the factory's labels on GitHub. It never overwrites a contract that is there. Read what it wrote and correct it: a workflow refuses to start unless the contract meets its needs.
 
    ```json
    {
@@ -75,16 +81,16 @@ A failed check or a `must` review finding goes back to build, up to the workflow
    | `mcp` | Optional. `true` lets agent steps load the machine's MCP servers. Off by default: they cost tokens on every step. |
    | `defaultBranch` | Optional. The branch work starts from and PRs target. |
 
-3. **Check it and set up the labels:**
+3. **Confirm the checks pass on a clean checkout**, then commit the contract:
 
    ```bash
-   npx botalot check
-   npx botalot labels --fix
+   npx botalot verify
    ```
 
 ## Commands
 
 ```
+botalot setup [--no-labels]           Set this repo up: write its contract if it has none, and its labels
 botalot check [workflow]              Check this repo's contract
 botalot start <workflow> <ticket>     Start a run for a ticket
 botalot next [run]                    Carry on this repo's waiting run
