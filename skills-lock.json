@@ -31,6 +31,12 @@
       "skillPath": "skills/engineering/domain-modeling/SKILL.md",
       "computedHash": "f377a1341e1b368833cfe5889ace3e61d7df48d7a9e5da9253dba75d062bbfbc"
     },
+    "factory-labels": {
+      "source": "paigelester/skills",
+      "sourceType": "github",
+      "skillPath": "factory/factory-labels/SKILL.md",
+      "computedHash": "b0c69c4548196351c26d206ff9d4c29be1030e4ee8f9394b34856289412ecb06"
+    },
     "grill-me": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -67,11 +73,23 @@
       "skillPath": "skills/engineering/implement-spec/SKILL.md",
       "computedHash": "4b91b5634b1a89a8b2ad44f8e7a320f778d05f6bd978d93076b6e89d7adfe9d8"
     },
+    "implement-ticket": {
+      "source": "paigelester/skills",
+      "sourceType": "github",
+      "skillPath": "factory/implement-ticket/SKILL.md",
+      "computedHash": "5b65cff3c5d87d454ebd15393a11b37ea9d9297bfcae0575768ec9eb02cd4de9"
+    },
     "improve-codebase-architecture": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "f74b0bf1be26220dd615523fc1c0562567f9c463d9e9b255d4031345ffb37cd3"
+    },
+    "local-review": {
+      "source": "paigelester/skills",
+      "sourceType": "github",
+      "skillPath": "factory/local-review/SKILL.md",
+      "computedHash": "e2c01e05f3054bab5050763b657ee7e6d74c0b7c7938434394b2d6bae62db8db"
     },
     "pr": {
       "source": "mattpocock/skills",

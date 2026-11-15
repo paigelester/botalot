@@ -51,7 +51,7 @@ When one commit spans several types, use the type of its main purpose: packaging
 
 ## Vendored skills
 
-Skills in `.agents/skills/` (linked into `.claude/skills/`) come from `mattpocock/skills` via the `skills` CLI, pinned in `package.json`. Don't edit them; changes are overwritten by updates.
+Skills in `.agents/skills/` (linked into `.claude/skills/`) come from `mattpocock/skills` and `paigelester/skills` (the `factory` family) via the `skills` CLI, pinned in `package.json` and recorded in `skills-lock.json`. Don't edit them; changes are overwritten by updates. Change a factory skill in `paigelester/skills`, then update here.
 
 - Update: `npm run skills:update`
 
