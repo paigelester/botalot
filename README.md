@@ -126,15 +126,16 @@ Patrol dragons follow the software factory's skills, installed from
 [paigelester/skills](https://github.com/paigelester/skills) into `.agents/skills/`
 (linked into `.claude/skills/`) by the `skills` CLI and recorded in `skills-lock.json`:
 
+- `setup-factory`: sets up a realm's GitHub repo for the factory (its `factory:*` labels).
 - `factory-labels`: the `factory:*` ticket labels and how to move a ticket between them.
 - `implement-ticket`: one agent-owned ticket from `factory:ready` to an open pull request.
 - `review-implementation`: the independent review of an implementation, by an agent or a developer, that `implement-ticket` runs in a subagent. Use it on a human-owned ticket too, before opening the PR.
 
     npm run skills:update                   # pull the latest skills
-    npm run factory:labels -- owner/repo    # create the factory labels in a realm's GitHub repo
+    npm run factory:setup -- owner/repo     # set up a realm's GitHub repo (add --check first to only report)
 
 To use patrol in another realm, install the same skills there
-(`npx skills add paigelester/skills --skill factory-labels --skill implement-ticket --skill review-implementation`).
+(`npx skills add paigelester/skills --skill setup-factory --skill factory-labels --skill implement-ticket --skill review-implementation`).
 
 ## Pixel-art dragons
 

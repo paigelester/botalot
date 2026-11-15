@@ -1,6 +1,6 @@
 ---
 name: factory-labels
-description: The `factory:*` ticket labels of the agent software factory and how to move a ticket between them. Use whenever you read, label, comment on or hand off a factory ticket, or set up the labels in a repo.
+description: The `factory:*` ticket labels of the agent software factory and how to move a ticket between them. Use whenever you read, label, comment on or hand off a factory ticket.
 ---
 
 # Factory labels
@@ -19,8 +19,8 @@ A factory ticket's state is its labels. Exactly one **state** label is on an ope
 | `factory:ready` | Approved to build | Human |
 | `factory:in-progress` | Being built | The builder (or the patrol that claims it) |
 | `factory:in-review` | PR open and under review | The builder, once the PR exists |
-| `factory:merged` | On `main` | Merger |
-| `factory:closed` | Done | Merger |
+| `factory:merged` | On `main` | Merger (`merge-pr`) |
+| `factory:closed` | Done | Merger (`merge-pr`) |
 | `factory:reopened` | Regression, back to refining | Anyone |
 
 ## Owners
@@ -54,4 +54,4 @@ gh issue comment <n> --body "..."                                    # say why
 
 ## Setting up a repo
 
-`bash scripts/create-labels.sh [owner/repo]` (from this skill's folder) creates or updates every label above. Exit 0 = all labels exist.
+If a label is missing, the repo isn't set up. Use the `setup-factory` skill.
