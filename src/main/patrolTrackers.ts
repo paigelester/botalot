@@ -6,7 +6,7 @@ import { githubComment, githubEnsureLabels, githubLabels, githubOldestWithLabels
 import { jiraComment, jiraLabels, jiraOldestWithLabels, jiraRelabel } from './jira'
 import { LABEL, type AttemptStore, type PatrolTracker } from './patrol'
 
-/** The labels patrol uses, created on GitHub when missing. Same colours as the factory-labels skill's create-labels.sh. */
+/** The labels patrol uses, created on GitHub when missing. Same colours as the setup-factory skill's setup.sh. */
 const GITHUB_LABELS = [
   { name: LABEL.ready, color: '0E8A16', description: 'Approved to build' },
   { name: LABEL.agent, color: '006B75', description: 'An agent builds it' },

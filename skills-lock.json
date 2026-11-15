@@ -35,7 +35,7 @@
       "source": "paigelester/skills",
       "sourceType": "github",
       "skillPath": "factory/factory-labels/SKILL.md",
-      "computedHash": "b0c69c4548196351c26d206ff9d4c29be1030e4ee8f9394b34856289412ecb06"
+      "computedHash": "0873ea09bf34e336b09eaeb8426c1b2a7fe7207340e8ec1c47372272dc71de28"
     },
     "grill-me": {
       "source": "mattpocock/skills",
@@ -114,6 +114,12 @@
       "sourceType": "github",
       "skillPath": "factory/review-implementation/SKILL.md",
       "computedHash": "ef064fb6a57c16765f99a41a9af207bbb644394aa854d66d6dcf1dc4c440c1fd"
+    },
+    "setup-factory": {
+      "source": "paigelester/skills",
+      "sourceType": "github",
+      "skillPath": "factory/setup-factory/SKILL.md",
+      "computedHash": "626827065a111343d1c8900701ca118f54aab0a3b813efd567317de9f3ea751c"
     },
     "setup-matt-pocock-skills": {
       "source": "mattpocock/skills",
