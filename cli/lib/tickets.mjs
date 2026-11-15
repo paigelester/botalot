@@ -32,6 +32,28 @@ export function relabel(repo, number, remove, add) {
   if (args.length > 3) call(repo, ...args);
 }
 
+/** Every open ticket, with its labels. */
+export function listTickets(repo) {
+  const json = call(repo, "issue", "list", "--state", "open", "--limit", "200", "--json", "number,title,url,labels");
+  return JSON.parse(json).map((i) => ({ number: i.number, title: i.title, url: i.url, labels: (i.labels ?? []).map((l) => l.name) }));
+}
+
+/** The latest routing plan posted on a ticket, or null. */
+export function routingPlan(repo, number) {
+  const plans = readTicket(repo, number).comments.filter((c) => c.body.trimStart().startsWith("## Routing plan"));
+  return plans.length ? plans.at(-1).body : null;
+}
+
+/** The human's approval of a routed ticket: selected becomes ready. Refused unless it has been routed. */
+export function approve(repo, number) {
+  const ticket = readTicket(repo, number);
+  if (ticket.labels.includes("factory:ready")) return `#${number} is already ready.`;
+  if (!ticket.labels.includes("factory:selected")) throw new Error(`#${number} is not at factory:selected, so there is nothing to approve.`);
+  if (!ticket.owner) throw new Error(`#${number} has no owner yet. Route it first: \`botalot start route ${number}\`.`);
+  relabel(repo, number, ["factory:selected"], ["factory:ready"]);
+  return `#${number} is ready, ${ticket.owner}.`;
+}
+
 export const assignToMe = (repo, number) => call(repo, "issue", "edit", String(number), "--add-assignee", "@me");
 export const comment = (repo, number, body) => call(repo, "issue", "comment", String(number), "--body", body);
 

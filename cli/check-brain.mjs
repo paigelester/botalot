@@ -100,6 +100,9 @@ for (const name of workflowNames()) {
   if (workflow.name !== name) errors.push(`${file} has name "${workflow.name}", expected "${name}"`);
   const ids = (workflow.steps ?? []).map((s) => s.id);
   if (ids.length === 0) errors.push(`${file} has no steps`);
+  if (!["work", "planning"].includes(workflow.kind)) errors.push(`${file} needs "kind": work (it changes code; shown as a dragon) or planning (it decides things; shown as a goblin)`);
+  if (!["holding", "main"].includes(workflow.where)) errors.push(`${file} needs "where": holding (a worktree of its own) or main (the repo's main checkout)`);
+  if (workflow.trigger && !(Array.isArray(workflow.trigger.labels) && workflow.trigger.labels.length)) errors.push(`${file} has a trigger with no labels`);
   if (new Set(ids).size !== ids.length) errors.push(`${file} repeats a step id`);
   for (const step of workflow.steps ?? []) {
     const where = `${file} step "${step.id}"`;

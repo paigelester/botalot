@@ -12,6 +12,9 @@ A workflow is a JSON file the driver (`botalot`) runs one step at a time. It own
 
 | Field | Means |
 |---|---|
+| `kind` | `work` (changes code; a dragon in the app) or `planning` (decides things; a goblin, and its result goes on the realm's board) |
+| `where` | `holding` (a worktree of its own) or `main` (the repo's main checkout, for a run that only reads) |
+| `trigger` | Optional. The labels a ticket must have (`labels`) and must not have (`without`) for the run to be due. `botalot due` lists what is due; the app's patrol starts it |
 | `needs` | Dot paths that must be filled in the repo's `.factory/contract.json`, or the workflow refuses to start |
 | `steps[].id` | The step's name in the run log |
 | `steps[].script` | A script step: plain code in `cli/lib/driver.mjs`, no agent |
@@ -24,4 +27,5 @@ A workflow is a JSON file the driver (`botalot`) runs one step at a time. It own
 
 ## Workflows
 
-- `implement`: claim → build → verify → review → squash → PR → hand-off.
+- `implement`: claim → build → verify → review → squash → PR → hand-off. Due when a ticket is ready and agent-owned.
+- `route`: select → route → post the plan and owner label. Due when a ticket is selected and has no owner. The human approves the result (`botalot approve`).

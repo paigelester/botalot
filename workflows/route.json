@@ -1,0 +1,12 @@
+{
+  "name": "route",
+  "description": "Judge a selected ticket's risk and solvability, pick its owner, and post the plan for a human to approve.",
+  "kind": "planning",
+  "where": "main",
+  "trigger": { "labels": ["factory:selected"], "without": ["factory:agent-owned", "factory:human-owned"] },
+  "needs": [],
+  "steps": [
+    { "id": "select", "script": "select-ticket" },
+    { "id": "route", "skill": "route", "then": "post-plan" }
+  ]
+}

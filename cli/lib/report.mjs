@@ -4,7 +4,7 @@ import { readKnowledge } from "./brain.mjs";
 /** The prompt for one agent step: the step skill, the knowledge it loads, then this run's inputs. */
 export function stepPrompt({ state, step, skill, contract, ticket, extra = "" }) {
   const parts = [
-    `You are one step of a botalot run. Do this step and nothing after it: a driver program runs the other steps, commits your work and opens the PR. Do not commit, push, change branches, or edit the ticket. Give your answer in the required structured shape when you are done.`,
+    `You are one step of a botalot run. Do this step and nothing after it: a driver program runs the other steps and does everything outside this one, such as committing, opening the PR and labelling the ticket. Do not commit, push, change branches, or edit the ticket. Give your answer in the required structured shape when you are done.`,
     `# Step: ${step.id}\n\n${skill.instructions}`,
   ];
   const knowledge = readKnowledge(skill.step.knowledge ?? [], contract);
@@ -15,7 +15,7 @@ export function stepPrompt({ state, step, skill, contract, ticket, extra = "" })
     `- Run: ${state.id}`,
     `- Branch: ${state.branch}`,
     `- Compare against: ${state.base} (the commit this work started from)`,
-    `- Checks the driver runs after this step: ${(contract.commands?.verify ?? []).map((c) => `\`${c}\``).join(", ")}`,
+    ...(state.workflow === "route" ? [] : [`- Checks the driver runs after this step: ${(contract.commands?.verify ?? []).map((c) => `\`${c}\``).join(", ")}`]),
     ``,
     `## Ticket #${ticket.number}: ${ticket.title}`,
     ``,
@@ -41,6 +41,31 @@ function criteriaTable(criteria) {
 
 export function findingLine(f) {
   return `- ${f.severity} · ${f.file}${f.line ? `:${f.line}` : ""} · ${f.problem} · ${f.fix}`;
+}
+
+const bullets = (items, none) => (items?.length ? items.map((i) => `- ${i}`) : [`- ${none}`]);
+
+/** The plan a route run posts on its ticket, for the human who approves it. The board reads it back by its heading. */
+export function planComment(output, owner, runId) {
+  return [
+    `## Routing plan`,
+    ``,
+    `**Owner:** ${owner} (rule: risk ${output.risk}, solvability ${output.solvability})`,
+    ``,
+    `### Approach`,
+    ...bullets(output.approach, "not given"),
+    ``,
+    `### Risk: ${output.risk}`,
+    ...bullets(output.riskReasons, "no reason given"),
+    ``,
+    `### Solvability: ${output.solvability}`,
+    ...bullets(output.solvabilityReasons, "nothing only a human has"),
+    ``,
+    `### Areas touched`,
+    ...bullets(output.areas, "not given"),
+    ``,
+    `Approve with \`botalot approve\`, or by moving the ticket to \`factory:ready\`. Botalot run \`${runId}\`.`,
+  ].join("\n");
 }
 
 /** The body of the PR an agent-owned run opens. */
@@ -77,6 +102,7 @@ export function summary(state) {
   const lines = [`Run ${state.id}: ${state.status}`];
   const add = (...more) => lines.push(...more);
   if (state.status === "done") {
+    if (state.plan) add(`Routed #${state.ticket}: ${state.plan.owner} (risk ${state.plan.risk}, solvability ${state.plan.solvability}).`, `Approve it with \`botalot approve ${state.ticket}\`.`);
     if (state.pr) add(`PR: ${state.pr}`);
     else if (state.owner === "human-owned") add(`Branch ${state.branch} passed every gate. It is ready for your PR.`);
     if (state.build?.criteria?.length) add("", criteriaTable(state.build.criteria));

@@ -1,6 +1,9 @@
 {
   "name": "implement",
   "description": "Take a ready ticket to an open PR (agent-owned) or to a verified, reviewed branch (human-owned).",
+  "kind": "work",
+  "where": "holding",
+  "trigger": { "labels": ["factory:ready", "factory:agent-owned"] },
   "needs": ["commands.verify"],
   "steps": [
     { "id": "claim", "script": "claim" },

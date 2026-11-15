@@ -16,7 +16,7 @@ Labels say where a ticket rests. What happens inside a step (refining, routing, 
 | `factory:new` | Just created | Whoever files it |
 | `factory:refined` | Purpose, acceptance criteria, acceptance tests and risk set | Refiner |
 | `factory:selected` | Picked to work on next; starts routing | Human |
-| `factory:ready` | Approved to build | Human |
+| `factory:ready` | Approved to build | Human (`botalot approve`) |
 | `factory:in-progress` | Being built | The driver, when a run claims it |
 | `factory:in-review` | PR open and under review | The driver, once the PR exists |
 

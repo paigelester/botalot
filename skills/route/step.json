@@ -1,0 +1,21 @@
+{
+  "edits": false,
+  "knowledge": [],
+  "tools": ["Read", "Glob", "Grep"],
+  "bash": ["git status", "git status *", "git log *", "git show *", "git ls-files *", "gh issue view *"],
+  "output": {
+    "type": "object",
+    "properties": {
+      "status": { "type": "string", "enum": ["done", "needs-human"] },
+      "approach": { "type": "array", "items": { "type": "string" } },
+      "risk": { "type": "string", "enum": ["low", "medium", "high"] },
+      "riskReasons": { "type": "array", "items": { "type": "string" } },
+      "solvability": { "type": "string", "enum": ["yes", "partly", "no"] },
+      "solvabilityReasons": { "type": "array", "items": { "type": "string" } },
+      "areas": { "type": "array", "items": { "type": "string" } },
+      "kind": { "type": "string", "enum": ["decision", "blocked"] },
+      "question": { "type": "string" }
+    },
+    "required": ["status"]
+  }
+}

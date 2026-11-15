@@ -56,7 +56,7 @@ export function draftContract(repo) {
   if (stacks.length === 0) notes.push(`No known stack was found, so only the fundamentals load. Stacks: ${stackNames().join(", ")}.`);
   if (pkg && !deps.botalot) notes.push(`botalot is not a dev dependency here. To pin it for other machines and cloud agents: ${pm.install === "npm install" ? "npm install --save-dev" : pm.install.replace("install", "add -D")} github:paigelester/botalot#v${BRAIN_VERSION}`);
 
-  const contract = { $schema: SCHEMA, botalot: BRAIN_VERSION, stacks, commands, workflows: ["implement"], reviews: [{ paths: ["**"], run: ["code"] }] };
+  const contract = { $schema: SCHEMA, botalot: BRAIN_VERSION, stacks, commands, workflows: ["implement", "route"], reviews: [{ paths: ["**"], run: ["code"] }] };
   return { contract, notes };
 }
 

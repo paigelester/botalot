@@ -29,6 +29,10 @@ if (area === "issue" && action === "view") {
       comments: (issue.comments ?? []).map((body) => ({ author: { login: "paige" }, body })),
     }),
   );
+} else if (area === "issue" && action === "list") {
+  const wanted = flagAll("--label");
+  const open = Object.values(state.issues).filter((i) => (i.state ?? "OPEN") === "OPEN" && wanted.every((l) => i.labels.includes(l)));
+  console.log(JSON.stringify(open.map((i) => ({ number: i.number, title: i.title, url: `https://example.test/issues/${i.number}`, labels: i.labels.map((name) => ({ name })) }))));
 } else if (area === "issue" && action === "edit") {
   const issue = state.issues[target];
   issue.labels = issue.labels.filter((l) => !flagAll("--remove-label").includes(l));

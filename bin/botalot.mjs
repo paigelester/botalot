@@ -14,7 +14,8 @@ import { topLevel, worktreeTree } from "../cli/lib/git.mjs";
 import { OPEN_STATUSES, allStates, isAlive, loadState } from "../cli/lib/runs.mjs";
 import { summary } from "../cli/lib/report.mjs";
 import { indexLine, setupRepo } from "../cli/lib/setup.mjs";
-import { syncLabels } from "../cli/lib/tickets.mjs";
+import { approve, syncLabels } from "../cli/lib/tickets.mjs";
+import { board, due } from "../cli/lib/board.mjs";
 
 const HELP = `botalot ${BRAIN_VERSION}
 
@@ -30,6 +31,9 @@ const HELP = `botalot ${BRAIN_VERSION}
   botalot knowledge [--index|--write]   Print the knowledge this repo's contract loads; or its index; or write the index
   botalot skill <name> [--ticket <n>]   Try one step skill by itself, to test it. Nothing is committed or labelled
                 [--dry]                 Print the prompt it would get, without starting an agent
+  botalot board [--json]                Show the tickets waiting on you: to approve, needing you, yours to build, in review
+  botalot approve <ticket>              Approve a routed ticket: move it from selected to ready
+  botalot due [--json]                  Show the runs that should be started, by each workflow's trigger
   botalot list                          Show the workflows, reviews and stacks the brain has
 
 Run logs are in ${runsDir()}`;
@@ -157,6 +161,31 @@ const commands = {
     else console.log(result.needsYou ? `The skill stopped and asked (${result.needsYou.kind}):\n\n${result.needsYou.question}` : (result.pause ?? "The skill did not finish."));
     console.log(`\nSession: ${result.session ?? "unknown"}\nPrompt and answer: ${result.files}`);
     process.exit(result.ok ? 0 : 2);
+  },
+
+  async board() {
+    const b = board(topLevel(process.cwd()));
+    if (flags.has("--json")) return console.log(JSON.stringify(b, null, 2));
+    const groups = [["To approve", b.toApprove], ["Needs you", b.needsYou], ["Yours to build", b.yoursToBuild], ["In review", b.inReview]];
+    for (const [title, items] of groups) {
+      console.log(`${title} (${items.length})`);
+      for (const t of items) console.log(`  #${t.number} ${t.title}${t.owner ? `  [${t.owner}]` : ""}`);
+    }
+  },
+
+  async approve() {
+    if (!/^\d+$/.test(rest[0] ?? "")) fail("Usage: botalot approve <ticket number>");
+    console.log(approve(topLevel(process.cwd()), Number(rest[0])));
+  },
+
+  async due() {
+    const repo = topLevel(process.cwd());
+    const { contract, problems } = checkContract(repo);
+    if (problems.length) fail(`The contract does not pass:\n${problems.map((p) => `- ${p}`).join("\n")}`);
+    const list = due(repo, contract);
+    if (flags.has("--json")) return console.log(JSON.stringify(list, null, 2));
+    if (list.length === 0) return console.log("Nothing is due.");
+    for (const d of list) console.log(`${d.workflow}  #${d.number} ${d.title}`);
   },
 
   async list() {

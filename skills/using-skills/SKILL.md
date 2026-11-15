@@ -47,7 +47,7 @@ Meta
 Factory
   Setting up a repo for the factory? ──────────────→ setup-factory
   Turning work into tickets? ──────────────────────→ create-tickets
-  Routing a selected ticket? ──────────────────────→ route-ticket
+  Routing a selected ticket? ──────────────────────→ the route workflow (below), not a skill
   Reading, labelling or handing off a ticket? ─────→ factory-labels
   Implementing a ticket from ready to PR? ─────────→ the implement workflow (below), not a skill
   Fixing failed checks or comments on a PR? ───────→ fix-pr
@@ -56,6 +56,7 @@ Factory
 
 Step skills (one job each; a workflow runs them, or use one alone)
   Building a ticket's change in the working tree? ─→ build
+  Judging a ticket's risk and solvability? ────────→ route
   Reviewing a change's code against its ticket? ───→ review-code
 ```
 
@@ -65,6 +66,9 @@ A workflow that has been built is a file in botalot's `workflows/` folder, run b
 
 ```
 botalot start implement <ticket>    claim → build → verify → review → squash → PR → hand-off
+botalot start route <ticket>        judge risk and solvability, pick the owner, post the plan
+botalot approve <ticket>            the human's approval of a routed ticket: selected → ready
+botalot board                       the tickets waiting on the human
 botalot next                        carry on a waiting run (after the human's step, or an answer)
 botalot status                      what is running or waiting
 ```
@@ -75,7 +79,6 @@ The chains below have no workflow file yet. Follow them by hand, starting at the
 
 ```
 Create tickets:      a grill session (when the work is fuzzy) → create-tickets
-Route a ticket:      factory-labels → route-ticket → (human approves to ready)
 PR workflow:         CI → fix-pr (until green, threads answered) → merge-pr (pre-filter, risk, merge or notify human) → close-out
 ```
 

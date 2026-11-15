@@ -10,10 +10,13 @@ import { matchesGlob } from "./glob.mjs";
 import * as g from "./git.mjs";
 import * as tickets from "./tickets.mjs";
 import { OPEN_STATUSES, allStates, isAlive, logEvent, newRunId, readQuota, runDir, saveState, writeQuota } from "./runs.mjs";
-import { findingLine, prBody, stepPrompt } from "./report.mjs";
+import { findingLine, planComment, prBody, stepPrompt } from "./report.mjs";
 
 const AGENT = "agent-owned";
 const HUMAN = "human-owned";
+
+/** Whether nobody is watching this run: everything but a run on a ticket the human is building themselves. */
+const unattended = (state) => state.owner !== HUMAN;
 
 /** Start a run. Refuses when the contract is unmet or a limit says no. Returns the run's state when it rests. */
 export async function startRun({ cwd, workflow, ticket, owner, say = console.log }) {
@@ -33,6 +36,7 @@ export async function startRun({ cwd, workflow, ticket, owner, say = console.log
   const state = {
     id: newRunId(repo, ticket),
     workflow,
+    kind: loadWorkflow(workflow).kind ?? "work",
     repo,
     mainRepo,
     repoName: basename(mainRepo),
@@ -63,7 +67,7 @@ export async function continueRun(state, { say = console.log } = {}) {
   if (state.status === "waiting-human") {
     // The human did the step themselves, so it counts as done and the gates after it run on their work.
     state.humanDone[state.wait.step] = true;
-  } else if (state.status === "waiting-you" && state.owner === AGENT) {
+  } else if (state.status === "waiting-you" && unattended(state)) {
     tickets.relabel(state.repo, state.ticket, ["factory:needs-you"], []);
   }
   logEvent(state, "run-continue", { from: state.status });
@@ -113,7 +117,7 @@ async function advance(state, ctx) {
       state.stepIndex++;
       continue;
     }
-    if (state.owner === AGENT && state.activeSeconds >= budget) {
+    if (unattended(state) && state.activeSeconds >= budget) {
       await needsYou(state, step, { kind: "blocked", question: `The run reached its ${limits(ctx.contract).minutesPerRun} minute limit at the "${step.id}" step. Carry it on with \`botalot next\`, or take the ticket over.` });
       break;
     }
@@ -172,7 +176,7 @@ function rest(state, status, wait) {
 /** Stop and ask. On an agent-owned ticket nobody is watching, so flag the ticket and say why on GitHub. */
 async function needsYou(state, step, { kind, question }) {
   const title = kind === "blocked" ? "Blocked" : "Decision needed";
-  if (state.owner === AGENT) {
+  if (unattended(state)) {
     try {
       const ticket = tickets.readTicket(state.repo, state.ticket);
       const login = tickets.humanFor(state.repo, ticket);
@@ -222,7 +226,7 @@ export async function trySkill({ cwd, skill: name, ticket: number, dry = false }
 /** Run a step skill as a fresh agent. Returns the step result plus `output`, the agent's structured answer. */
 async function agentStep(state, step, ctx, skillName, extra = "") {
   const { contract } = ctx;
-  if (state.owner === AGENT) {
+  if (unattended(state)) {
     const quota = readQuota();
     const limit = limits(contract).pauseAtQuotaPercent;
     if (quota?.fiveHour && quota.fiveHour.usedPercent >= limit) {
@@ -236,7 +240,7 @@ async function agentStep(state, step, ctx, skillName, extra = "") {
   const prompt = stepPrompt({ state, step, skill, contract, ticket, extra });
   writeFileSync(join(dir, `${attempt}.prompt.md`), prompt);
 
-  const remaining = state.owner === AGENT ? Math.max(60, limits(contract).minutesPerRun * 60 - state.activeSeconds) : null;
+  const remaining = unattended(state) ? Math.max(60, limits(contract).minutesPerRun * 60 - state.activeSeconds) : null;
   const res = await runAgent({
     cwd: state.repo,
     prompt,
@@ -315,6 +319,32 @@ ${r.output.slice(-2000).trim()}` };
     }
     writeFileSync(join(runDir(state.id), "ticket.json"), JSON.stringify(ticket, null, 2));
     return { ok: true, log: { owner: state.owner, branch: state.branch, base: state.base } };
+  },
+
+  /** Take a ticket for planning: it must be selected and not yet routed. Nothing is claimed, branched or changed. */
+  async "select-ticket"(state) {
+    const { repo } = state;
+    const ticket = tickets.readTicket(repo, state.ticket);
+    if (ticket.state !== "OPEN") return { stop: `Ticket #${ticket.number} is closed.` };
+    if (!ticket.labels.includes("factory:selected")) return { stop: `Ticket #${ticket.number} is not at factory:selected, so it has not been picked to work on.` };
+    if (ticket.owner) return { stop: `Ticket #${ticket.number} already has an owner (${ticket.owner}), so it has been routed. \`botalot approve ${ticket.number}\` makes it ready.` };
+    state.branch = g.currentBranch(repo);
+    state.base = g.head(repo);
+    writeFileSync(join(runDir(state.id), "ticket.json"), JSON.stringify(ticket, null, 2));
+    return { ok: true };
+  },
+
+  /**
+   * After the route agent: pick the owner by rule, never by the agent's say-so, then post the plan and the
+   * owner label. The ticket stays selected: making it ready is the human's move (`botalot approve`).
+   */
+  async "post-plan"(state, step, ctx, output) {
+    if (!output.risk || !output.solvability) return { needsYou: { kind: "decision", question: "The route step finished without a risk and a solvability rating." } };
+    const owner = ["low", "medium"].includes(output.risk) && output.solvability === "yes" ? AGENT : HUMAN;
+    tickets.comment(state.repo, state.ticket, planComment(output, owner, state.id));
+    tickets.relabel(state.repo, state.ticket, [], [`factory:${owner}`]);
+    state.plan = { owner, risk: output.risk, solvability: output.solvability };
+    return { ok: true, log: state.plan };
   },
 
   /** After the build agent: keep its answer for the PR, and save its work as a commit. */
