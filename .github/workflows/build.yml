@@ -7,17 +7,21 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
+          cache-dependency-path: app/package-lock.json
       # electron-builder downloads its own Electron, and node-pty ships prebuilt binaries.
       - run: npm ci --ignore-scripts
       - run: npm run dist
       - uses: actions/upload-artifact@v4
         with:
           name: botalot-windows
-          path: dist/*.exe
+          path: app/dist/*.exe
           if-no-files-found: error

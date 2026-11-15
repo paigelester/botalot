@@ -4,14 +4,14 @@
 const { execFileSync } = require('child_process')
 const fs = require('fs')
 
-// Files every check depends on: the toolchain, and ci.yml itself.
-const shared = ['package.json', 'package-lock.json', '.nvmrc', '.github/workflows/ci.yml']
+// Files every app check depends on: the app's toolchain, and ci.yml itself.
+const shared = ['app/package.json', 'app/package-lock.json', '.nvmrc', '.github/workflows/ci.yml']
 
 // Each check's inputs. An entry ending in `/` matches everything under that folder.
 const checks = {
-  typecheck: ['src/', 'electron.vite.config.ts', 'tsconfig.json', '.github/workflows/typecheck.yml'],
-  test: ['src/', 'hooks/', 'tsconfig.json', '.github/workflows/test.yml'],
-  build: ['src/', 'hooks/', 'electron.vite.config.ts', 'electron-builder.yml', 'tsconfig.json', '.github/workflows/build.yml']
+  typecheck: ['app/src/', 'app/electron.vite.config.ts', 'app/tsconfig.json', '.github/workflows/typecheck.yml'],
+  test: ['app/src/', 'app/hooks/', 'app/tsconfig.json', '.github/workflows/test.yml'],
+  build: ['app/src/', 'app/hooks/', 'app/electron.vite.config.ts', 'app/electron-builder.yml', 'app/tsconfig.json', '.github/workflows/build.yml']
 }
 
 const matches = (file, entry) => (entry.endsWith('/') ? file.startsWith(entry) : file === entry)

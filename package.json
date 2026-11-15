@@ -1,50 +1,48 @@
 {
   "name": "botalot",
-  "version": "0.1.0",
-  "description": "Botalot: a fantasy command view where every coding-agent session is a dragon in your kingdom",
-  "main": "./out/main/index.js",
-  "private": true,
-  "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "start": "electron-vite preview",
-    "dist": "electron-vite build && electron-builder --win --publish never",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \"src/**/*.test.ts\"",
-    "demo": "electron-vite build && node scripts/demo/demo.cjs",
-    "skills:update": "skills update --project -y",
-    "prepare": "husky",
-    "ci:changes": "node scripts/ci/changed-checks.cjs",
-    "commits:check": "commitlint --from origin/main --to HEAD --verbose",
-    "verify": "npm run typecheck && npm test && npm run build"
-  },
+  "version": "1.1.0",
+  "description": "Botalot: a software factory for coding agents. Workflows, step skills and knowledge, the driver that runs them, and a fantasy command view on top.",
   "license": "MIT",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "botalot": "bin/botalot.mjs"
+  },
+  "files": [
+    "bin",
+    "cli",
+    "workflows",
+    "skills",
+    "knowledge",
+    "schemas"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "node cli/check-brain.mjs",
+    "test": "node --test \"tests/*.test.mjs\"",
+    "verify:cli": "npm run check && npm test",
+    "verify:app": "npm --prefix app run verify",
+    "verify": "npm run verify:cli && npm run verify:app",
+    "app:install": "npm --prefix app install",
+    "dev": "npm --prefix app run dev",
+    "demo": "npm --prefix app run demo --",
+    "dist": "npm --prefix app run dist",
+    "hooks": "husky",
+    "skills:update": "skills update --project -y",
+    "ci:changes": "node scripts/ci/changed-checks.cjs",
+    "commits:check": "commitlint --from origin/main --to HEAD --verbose"
+  },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
     "@commitlint/config-conventional": "21.2.3",
-    "@types/node": "^26.6.5",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0",
-    "electron": "^44.7.2",
-    "electron-builder": "^26.15.3",
-    "electron-vite": "^6.0.0",
     "husky": "9.1.7",
-    "pixi.js": "^8.22.0",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "skills": "1.7.2",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "skills": "1.7.2"
   },
   "commitlint": {
     "extends": [
       "@commitlint/config-conventional"
     ]
-  },
-  "dependencies": {
-    "node-pty": "1.1.0"
   }
 }
