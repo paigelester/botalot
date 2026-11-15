@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 import { UNCLAIMED_REALM, type Project, type Session } from '@shared/types'
+import type { Board } from '@shared/board'
 import { api } from '../api'
 
 interface Props {
   sessions: Session[]
   projects: Project[]
+  /** Every realm's board: its tickets to approve are listed above the dragons. */
+  boards: Record<string, Board>
+  onOpenBoard(projectId: string): void
   onOpen(id: string): void
   onClose(): void
 }
@@ -22,7 +26,7 @@ function waited(since: number, now: number): string {
 }
 
 /** Every dragon awaiting your word, longest-waiting first, each with a quick reply. */
-export function WaitingPanel({ sessions, projects, onOpen, onClose }: Props) {
+export function WaitingPanel({ sessions, projects, boards, onOpen, onOpenBoard, onClose }: Props) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 5000)
@@ -30,6 +34,7 @@ export function WaitingPanel({ sessions, projects, onOpen, onClose }: Props) {
   }, [])
 
   // Stuck dragons first (working ones included: they need a look too), then longest-waiting first.
+  const toApprove = projects.flatMap((p) => (boards[p.id]?.toApprove ?? []).map((t) => ({ project: p, ticket: t })))
   const waiting = sessions
     .filter((s) => s.state === 'waiting' || !!s.stuck)
     .sort((a, b) => Number(!!b.stuck) - Number(!!a.stuck) || a.stateSince - b.stateSince)
@@ -44,10 +49,28 @@ export function WaitingPanel({ sessions, projects, onOpen, onClose }: Props) {
           ✕
         </button>
       </header>
-      {waiting.length === 0 ? (
+      {waiting.length === 0 && toApprove.length === 0 ? (
         <p className="waiting-empty">No dragon awaits you. The kingdom is at peace.</p>
       ) : (
         <ul>
+          {toApprove.map(({ project, ticket }) => (
+            <li key={project.id + ticket.number} className="waiting-row">
+              <div className="waiting-head">
+                <span className="dragon-name" style={{ color: hex(project.tint) }}>
+                  #{ticket.number} {ticket.title}
+                </span>
+                <span className="spacer" />
+              </div>
+              <div className="waiting-why">Routed: {ticket.owner === 'agent-owned' ? 'an agent builds it' : 'you build it'}. Waiting for your approval.</div>
+              <div className="waiting-actions">
+                <span className="hint">🏰 {project.name}</span>
+                <span className="spacer" />
+                <button className="primary small" onClick={() => onOpenBoard(project.id)}>
+                  Open board
+                </button>
+              </div>
+            </li>
+          ))}
           {waiting.map((s) => {
             const project = projects.find((p) => p.id === s.projectId)
             const realm = project?.name ?? (s.projectId === UNCLAIMED_REALM ? 'Unclaimed lands' : 'Unknown realm')

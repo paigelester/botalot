@@ -1,6 +1,7 @@
 // Types shared between the Electron main process and the renderer.
 import type { Quota } from './quota.ts'
 import type { RunView } from './runs.ts'
+import type { Board } from './board.ts'
 
 /** dormant = recorded from an earlier run, not running now; wake it to resume the agent's session. */
 export type SessionState = 'working' | 'waiting' | 'idle' | 'dead' | 'dormant'
@@ -190,6 +191,15 @@ export interface DragonApi {
     onRemoved(cb: (id: string) => void): () => void
     /** The main process asks the UI to open a session, e.g. from a notification. */
     onFocus(cb: (id: string) => void): () => void
+  }
+  board: {
+    /** Every realm's board, by realm id. A realm with no GitHub tracker or no contract has none. */
+    all(): Promise<Record<string, Board>>
+    /** Read a realm's board from GitHub again now. */
+    refresh(projectId: string): Promise<void>
+    /** Approve a routed ticket (`botalot approve`): it moves from selected to ready. */
+    approve(projectId: string, ticket: number): Promise<void>
+    onUpdate(cb: (boards: Record<string, Board>) => void): () => void
   }
   names: {
     random(): Promise<string>

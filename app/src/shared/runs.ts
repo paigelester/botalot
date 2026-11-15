@@ -48,6 +48,8 @@ export interface RunStep {
 
 export interface RunView {
   id: string
+  /** work changes code and shows as a dragon; planning decides things and shows as a goblin. */
+  kind: 'work' | 'planning'
   /** The repo's main checkout, forward-slashed: matches a realm's path. */
   mainRepo: string
   /** Where the run works: the main checkout or one of its holdings. */
@@ -170,6 +172,7 @@ export function buildRunView(stateJson: unknown, events: Record<string, unknown>
   const startedAt = Date.parse(str(s.startedAt) ?? '') || 0
   return {
     id,
+    kind: s.kind === 'planning' ? 'planning' : 'work',
     mainRepo: (str(s.mainRepo) ?? str(s.repo) ?? '').split('\\').join('/'),
     cwd: str(s.repo) ?? '',
     repoName: str(s.repoName) ?? '',

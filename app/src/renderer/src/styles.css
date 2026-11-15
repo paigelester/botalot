@@ -784,6 +784,57 @@ button.pill:not(.pill-alert) {
   font-size: 12px;
 }
 
+/* A realm's board: the tickets waiting on you, opened by tapping its castle */
+.board-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.board-group {
+  margin-top: 12px;
+}
+.board-group h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--gold);
+}
+.board-group > .hint {
+  margin: 2px 0 6px;
+}
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+}
+.board-row a {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.board-title {
+  overflow-wrap: anywhere;
+}
+.board-owner-agent-owned {
+  color: var(--working);
+}
+.board-owner-human-owned {
+  color: var(--waiting);
+}
+.board-plan {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--panel-2);
+  border-radius: 4px;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* A run dragon's panel body: the run itself, where another dragon has its terminal */
 .badge-run {
   color: #ffb27a;

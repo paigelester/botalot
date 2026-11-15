@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { Project } from '@shared/types'
 import { configDir } from './config'
-import { githubComment, githubEnsureLabels, githubRelabel, githubWithLabels } from './github'
+import { githubComment, githubEnsureLabels, githubRelabel } from './github'
 import { LABEL, type PatrolMemory, type PatrolTracker } from './patrol'
 
 /** The labels patrol writes, created on GitHub when missing. Same colours as the CLI sets (`botalot labels`). */
@@ -16,7 +16,6 @@ export function patrolTrackerFor(p: Project): PatrolTracker | null {
   const t = p.tracker
   if (t?.kind === 'github') {
     return {
-      ready: () => githubWithLabels(p.path, [LABEL.ready, LABEL.agent]),
       relabel: (key, remove, add) => githubRelabel(p.path, key, remove, add),
       comment: (key, text) => githubComment(p.path, key, text),
       ensureLabels: () => githubEnsureLabels(p.path, GITHUB_LABELS)

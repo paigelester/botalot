@@ -171,6 +171,18 @@ export function stopRun(run: RunView, onExit?: (code: number, output: string) =>
   driver(['stop', run.id], homedir(), run.mainRepo, onExit)
 }
 
+/** Run a CLI command that answers at once (board, due, approve) and give back what it printed. */
+export function cli(args: string[], cwd: string, mainRepo?: string): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    execFile(
+      process.execPath,
+      [cliFor(mainRepo), ...args],
+      { cwd, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
+      (err, stdout, stderr) => resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, stdout, stderr })
+    )
+  })
+}
+
 /** Set a realm up for the factory (`botalot setup`): its contract and its labels. Resolves with what the CLI printed. */
 export function setupRealm(repo: string): Promise<{ ok: boolean; output: string }> {
   return new Promise((resolve) => driver(['setup'], repo, repo, (code, output) => resolve({ ok: code === 0, output })))

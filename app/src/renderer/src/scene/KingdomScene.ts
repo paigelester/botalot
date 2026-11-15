@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, Text } from 'pixi.js'
 import { UNCLAIMED_REALM, type CiStatus, type Project, type PullRequestInfo, type Session } from '@shared/types'
 import { Dragon, type Perch } from './Dragon'
-import { loadDragonSprites, type DragonSpriteSet } from './sprites'
+import { loadDragonSprites, loadGoblinSprites, type DragonSpriteSet } from './sprites'
 
 /** The kingdom is designed at this logical size and scaled to fit the window. */
 export const WORLD_W = 1280
@@ -48,6 +48,8 @@ export interface SceneCallbacks {
 interface Castle {
   projectId: string
   container: Container
+  /** Under the name: how many tickets on the realm's board wait for your approval. Empty when none do. */
+  board: Text
   x: number
   y: number
   holdings: Map<string, Holding>
@@ -77,6 +79,8 @@ export class KingdomScene {
   private sessions: Session[] = []
   private selectedId: string | null = null
   private sprites: DragonSpriteSet | null = null
+  private goblin: DragonSpriteSet | null = null
+  private boardCounts: Record<string, number> = {}
   private stars: { x: number; y: number; phase: number }[] = []
   private starG = new Graphics()
   private ro: ResizeObserver | null = null
@@ -120,6 +124,8 @@ export class KingdomScene {
       console.warn('dragon sprites unavailable, using placeholders', err)
       this.sprites = null
     }
+    // The goblin is optional too: without it a planning run is drawn as a dragon.
+    this.goblin = await loadGoblinSprites().catch(() => null)
     if (this.destroyed) return
     if (this.sprites) {
       for (const d of this.dragons.values()) d.destroy({ children: true })
@@ -150,6 +156,15 @@ export class KingdomScene {
     this.projects = projects
     this.rebuildCastles()
     this.rebuildDragons()
+  }
+
+  /** How many tickets wait for approval on each realm's board, by realm id: shown under the castle's name. */
+  setBoardCounts(counts: Record<string, number>): void {
+    this.boardCounts = counts
+    for (const c of this.castles.values()) {
+      const n = counts[c.projectId] ?? 0
+      c.board.text = n > 0 ? `${n} to approve` : ''
+    }
   }
 
   setSessions(sessions: Session[]): void {
@@ -239,6 +254,11 @@ export class KingdomScene {
       name.position.set(0, 30)
       name.resolution = 2
       container.addChild(name)
+      const board = new Text({ text: '', style: { fontFamily: 'Georgia, serif', fontSize: 12, fill: 0xffd26a, stroke: { color: 0x1a1024, width: 3 } } })
+      board.anchor.set(0.5, 0)
+      board.position.set(0, 50)
+      board.resolution = 2
+      container.addChild(board)
       container.eventMode = 'static'
       container.cursor = 'pointer'
       container.on('pointertap', (e) => {
@@ -246,8 +266,9 @@ export class KingdomScene {
         this.cb.onTapCastle(p.id)
       })
       this.land.addChild(container)
-      this.castles.set(p.id, { projectId: p.id, container, x, y: yy, holdings: new Map() })
+      this.castles.set(p.id, { projectId: p.id, container, board, x, y: yy, holdings: new Map() })
     })
+    this.setBoardCounts(this.boardCounts)
     this.sortLand()
   }
 
@@ -311,7 +332,8 @@ export class KingdomScene {
     name.resolution = 2
     container.addChild(name)
     this.land.addChild(container)
-    const camp: Castle = { projectId: UNCLAIMED_REALM, container, x, y, holdings: new Map() }
+    // The camp is no realm, so it has no board: its count stays empty.
+    const camp: Castle = { projectId: UNCLAIMED_REALM, container, board: new Text({ text: '' }), x, y, holdings: new Map() }
     this.castles.set(UNCLAIMED_REALM, camp)
     this.sortLand()
     return camp
@@ -346,7 +368,8 @@ export class KingdomScene {
       seen.add(s.id)
       let d = this.dragons.get(s.id)
       if (!d) {
-        d = new Dragon(s, this.sprites)
+        const goblin = s.run?.kind === 'planning' ? this.goblin : null
+        d = new Dragon(s, goblin ?? this.sprites, !!goblin)
         d.on('pointertap', (e) => {
           e.stopPropagation()
           this.cb.onSelectDragon(s.id)

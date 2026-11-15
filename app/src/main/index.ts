@@ -13,9 +13,11 @@ import { PrWatcher } from './prWatcher'
 import { Patrol } from './patrol'
 import { filePatrolMemory, patrolTrackerFor } from './patrolTrackers'
 import { addWorktree, listWorktrees, remoteDefaultBranch } from './git'
-import { RunsWatcher, continueRun, setupRealm, shareQuota, startRun, stopRun } from './runs'
+import { RunsWatcher, cli, continueRun, setupRealm, shareQuota, startRun, stopRun } from './runs'
+import { BoardWatcher } from './board'
+import { parseDue, type Due } from '@shared/board'
 import { issueBranch } from '@shared/issues'
-import { samePath } from '@shared/runs'
+import { samePath, type RunView } from '@shared/runs'
 import { listGitHubIssues } from './github'
 
 // Demo mode must never touch the real config. Unless a user-data-dir was given explicitly,
@@ -35,6 +37,7 @@ const hooks = new HookServer()
 const registry = new RegistryWatcher()
 const background = new BackgroundWatcher()
 const runs = new RunsWatcher()
+let boards: BoardWatcher
 let prs: PrWatcher | null = null
 let patrolTimer: NodeJS.Timeout | null = null
 /** The latest quota reading from any dragon's status line; null until one arrives. */
@@ -78,15 +81,15 @@ function createWindow(): void {
 }
 
 /**
- * Make a ticket's holding and start a run of the implement workflow there. Resolves when the run has begun
- * (`begun`: the Summon dialog, which only needs to know it started) or when its driver has taken it as far as
- * it can (`rested`: patrol, which counts it as going until then). Rejects with the driver's words when no
- * run could be started at all.
+ * Start a run for a ticket: in a holding made for it, or in the realm's main checkout, as the workflow asks.
+ * Resolves when the run has begun (`begun`: a person started it and only needs to know it did) or when its
+ * driver has taken it as far as it can (`rested`: patrol, which counts it as going until then). Rejects with
+ * the driver's words when no run could be started at all.
  */
-async function startRunFor(p: Project, issue: Issue, until: 'begun' | 'rested'): Promise<void> {
-  const holding = await addWorktree(p.path, issueBranch(issue), p.worktreeLayout)
+async function startRunFor(p: Project, due: Pick<Due, 'workflow' | 'where' | 'number' | 'title'>, until: 'begun' | 'rested'): Promise<void> {
+  const cwd = due.where === 'main' ? p.path : (await addWorktree(p.path, issueBranch({ key: String(due.number), title: due.title }), p.worktreeLayout)).path
   const since = Date.now()
-  const begun = (): boolean => runs.list().some((r) => r.ticket === Number(issue.key) && samePath(r.mainRepo, p.path) && r.startedAt >= since - 5000)
+  const begun = (): boolean => runs.list().some((r) => r.ticket === due.number && r.workflow === due.workflow && samePath(r.mainRepo, p.path) && r.startedAt >= since - 5000)
   await new Promise<void>((resolve, reject) => {
     let timer: NodeJS.Timeout | null = null
     const settle = (err?: Error): void => {
@@ -94,7 +97,7 @@ async function startRunFor(p: Project, issue: Issue, until: 'begun' | 'rested'):
       if (err) reject(err)
       else resolve()
     }
-    startRun(p.path, holding.path, 'implement', Number(issue.key), (code, output) => {
+    startRun(p.path, cwd, due.workflow, due.number, (code, output) => {
       runs.poll()
       // Exit 1 with a run on record is a run that stopped, which shows on the run itself. With none, nothing started.
       settle(code === 1 && !begun() ? new Error(output || 'The driver exited without starting a run.') : undefined)
@@ -163,7 +166,17 @@ function registerIpc(): void {
   ipcMain.handle('runs:start', async (_e, projectId: string, issue: Issue) => {
     const p = projects.get(projectId)
     if (!p) throw new Error('Unknown realm')
-    await startRunFor(p, issue, 'begun')
+    await startRunFor(p, { workflow: 'implement', where: 'holding', number: Number(issue.key), title: issue.title }, 'begun')
+    void boards.poll(p.id)
+  })
+  ipcMain.handle('board:all', () => boards.all())
+  ipcMain.handle('board:refresh', (_e, projectId: string) => boards.poll(projectId))
+  ipcMain.handle('board:approve', async (_e, projectId: string, ticket: number) => {
+    const p = projects.get(projectId)
+    if (!p) throw new Error('Unknown realm')
+    const r = await cli(['approve', String(ticket)], p.path, p.path)
+    if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || 'botalot approve failed')
+    await boards.poll(p.id)
   })
   ipcMain.handle('runs:carryOn', (_e, id: string) => {
     const run = runs.get(id)
@@ -201,6 +214,7 @@ app.whenReady().then(async () => {
   writeHookPortFile(port)
   const settingsPath = ensureClaudeHooks()
   projects = new ProjectStore()
+  boards = new BoardWatcher(() => projects.all())
   void projects.inferTrackers()
   sessions = new SessionManager(port, settingsPath, ensureClaudeBackgroundHooks())
   sessions.restore((pid) => projects.get(pid))
@@ -239,13 +253,24 @@ app.whenReady().then(async () => {
   // Factory runs. The demo kingdom is fictional, so it shows runs only from a runs folder made for it (BOTALOT_HOME).
   const demo = !!process.env.DRAGON_DEMO || !!process.env.DRAGON_DEMO_PLAN
   if (!demo || process.env.BOTALOT_HOME) {
-    runs.on('runs', (list) => {
+    let statuses = ''
+    runs.on('runs', (list: RunView[]) => {
       send('runs:update', list)
       sessions.applyRuns(list, projects.all())
+      // A run starting, resting or finishing moves tickets on and off the boards; a run merely working doesn't.
+      const now = list.map((r) => r.id + r.status).join('|')
+      if (now !== statuses) void boards.poll()
+      statuses = now
     })
     // A realm added or removed changes which runs have a castle to stand by.
     projects.on('changed', () => sessions.applyRuns(runs.list(), projects.all()))
     runs.start()
+  }
+
+  // Boards come from GitHub, which the fictional demo kingdom doesn't have: it shows boards only from a file made for it.
+  if (!demo || process.env.DRAGON_DEMO_BOARDS) {
+    boards.on('boards', (all) => send('board:update', all))
+    boards.start()
   }
 
   // Patrol goes every couple of minutes, and soon after a realm's patrol is switched on.
@@ -254,7 +279,12 @@ app.whenReady().then(async () => {
       projects: () => projects.all(),
       runs: () => runs.list(),
       trackerFor: patrolTrackerFor,
-      start: (p, issue) => startRunFor(p, issue, 'rested'),
+      due: async (p) => {
+        const r = await cli(['due', '--json'], p.path, p.path)
+        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || 'botalot due failed')
+        return parseDue(JSON.parse(r.stdout))
+      },
+      start: (p, due) => startRunFor(p, due, 'rested'),
       memory: filePatrolMemory(),
       log: (m) => console.log('[patrol]', m)
     })
@@ -358,6 +388,7 @@ app.on('before-quit', () => {
   registry.stop()
   background.stop()
   runs.stop()
+  boards?.stop()
   prs?.stop()
   if (patrolTimer) clearInterval(patrolTimer)
   hooks.stop()

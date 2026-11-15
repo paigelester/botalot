@@ -1,0 +1,20 @@
+{
+  "frameWidth": 64,
+  "frameHeight": 64,
+  "scale": 1.25,
+  "facing": "right",
+  "animations": {
+    "fly": {
+      "files": ["write_1.png", "write_2.png", "write_3.png", "write_4.png", "write_5.png", "write_6.png", "write_7.png", "write_8.png"],
+      "fps": 8
+    },
+    "roar": {
+      "files": ["wave_1.png", "wave_2.png", "wave_3.png", "wave_4.png", "wave_5.png", "wave_6.png", "wave_7.png", "wave_8.png"],
+      "fps": 8
+    },
+    "idle": {
+      "files": ["idle_0.png", "idle_1.png", "idle_2.png", "idle_3.png"],
+      "fps": 4
+    }
+  }
+}

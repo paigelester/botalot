@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { DragonApi, Issue, Project, Session, SpawnRequest } from '@shared/types'
 import type { Quota } from '@shared/quota'
 import type { RunView } from '@shared/runs'
+import type { Board } from '@shared/board'
 
 function subscribe<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
   const handler = (_e: Electron.IpcRendererEvent, ...args: unknown[]) => cb(...(args as T))
@@ -38,6 +39,12 @@ const api: DragonApi = {
     onData: (cb) => subscribe<[string, string]>('session:data', cb),
     onRemoved: (cb) => subscribe<[string]>('session:removed', cb),
     onFocus: (cb) => subscribe<[string]>('session:focus', cb)
+  },
+  board: {
+    all: () => ipcRenderer.invoke('board:all'),
+    refresh: (projectId) => ipcRenderer.invoke('board:refresh', projectId),
+    approve: (projectId, ticket) => ipcRenderer.invoke('board:approve', projectId, ticket),
+    onUpdate: (cb) => subscribe<[Record<string, Board>]>('board:update', cb)
   },
   names: {
     random: () => ipcRenderer.invoke('names:random')

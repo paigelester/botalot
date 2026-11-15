@@ -38,11 +38,14 @@ export class Dragon extends Container {
   private t = Math.random() * 100
   private phase = Math.random() * Math.PI * 2
   private facing = 1
+  /** A character that works on the ground and keeps its own colours: the goblin of a planning run. */
+  private grounded: boolean
 
-  constructor(session: Session, sprites: DragonSpriteSet | null) {
+  constructor(session: Session, sprites: DragonSpriteSet | null, grounded = false) {
     super()
     this.id = session.id
     this.sprites = sprites
+    this.grounded = grounded
     this.eventMode = 'static'
     this.cursor = 'pointer'
 
@@ -89,16 +92,23 @@ export class Dragon extends Container {
     this.state = session.state
     this.stuck = !!session.stuck
     this.nameLabel.text = nameText(session)
-    const colour = session.state === 'dead' ? GREY : session.state === 'dormant' ? mix(this.realmTint, 0x5a6080, 0.6) : this.realmTint
+    const colour = this.colourFor(session.state)
     this.placeholder?.setTint(colour)
     if (this.sprite) this.sprite.tint = colour
   }
 
   setTint(tint: number): void {
     this.realmTint = tint
-    const colour = this.state === 'dead' ? GREY : this.state === 'dormant' ? mix(tint, 0x5a6080, 0.6) : tint
+    const colour = this.colourFor(this.state)
     this.placeholder?.setTint(colour)
     if (this.sprite) this.sprite.tint = colour
+  }
+
+  /** Dragons are drawn pale and take their realm's colour; a grounded character keeps the colours it was drawn in. */
+  private colourFor(state: SessionState): number {
+    if (state === 'dead') return GREY
+    if (this.grounded) return 0xffffff
+    return state === 'dormant' ? mix(this.realmTint, 0x5a6080, 0.6) : this.realmTint
   }
 
   private setAnim(anim: DragonAnim): void {
@@ -123,7 +133,12 @@ export class Dragon extends Container {
     this.zzz.visible = false
     this.body.rotation = 0
 
-    if (this.state === 'working') {
+    if (this.state === 'working' && this.grounded) {
+      // No flight: it stays where it stands and works.
+      this.position.set(p.x, p.y)
+      this.body.scale.set(baseScale * this.facing, baseScale)
+      this.setAnim('fly')
+    } else if (this.state === 'working') {
       const a = t * 1.1
       const x = p.orbitX + Math.cos(a) * 62
       const y = p.orbitY + Math.sin(a * 2) * 10 - 10

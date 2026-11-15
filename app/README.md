@@ -75,18 +75,32 @@ Requires Node 20+, git, and `claude` (Claude Code) on PATH. Windows is the prima
   leaves after 12 hours, or when you bury it; the run stays in the runs panel.
   To start a run yourself, pick an issue for a new holding in the Summon dialog
   and tick **Run the implement workflow**.
+- **Goblins and the board.** Planning is not building, so it looks different. A
+  planning run (the route workflow) is a goblin bookkeeper at the realm's castle:
+  writing while it works, waving with the gold ring if it needs you, gone when it
+  is done. Its result lands on the realm's **board**, which a tap on the castle
+  opens: tickets **to approve** (routed, with the plan and who builds it;
+  **Approve** runs `botalot approve`), tickets that **need you**, tickets that
+  are **yours to build** (**Start run**), and tickets **in review**. The castle
+  shows how many wait for approval, and they count in "awaiting you". Summoning a
+  dragon moved from the castle tap to a button on the board; the top bar's
+  Summon dragon is unchanged.
 - **Patrol.** Switch on Patrol for a realm in the Realms dialog and, every couple
-  of minutes while the app runs, it takes the oldest open tickets labelled both
-  `factory:ready` and `factory:agent-owned`, makes a holding named from each
-  ticket, and starts a run of the implement workflow there
-  (`botalot start implement <ticket>`). The driver does the rest: it moves the
-  ticket to `factory:in-progress`, builds, verifies, reviews, opens the pull
-  request and moves the ticket to `factory:in-review`. A run that needs a
-  decision or access flags the ticket `factory:needs-you` itself and says why in
-  a comment. Patrol flags the ticket the same way when a run stops on a problem
-  or loses its driver, and when no run could be started at all twice in a row
-  (the realm has no passing `.factory/contract.json`, say); such a ticket loses
-  `factory:ready` until you label it again. At most N runs per realm at once
+  of minutes while the app runs, it starts the runs that are due there. What is
+  due is the CLI's answer (`botalot due`): each ticket whose labels match the
+  trigger of a workflow the realm's contract turns on, oldest first. A ticket
+  labelled `factory:selected` with no owner gets a **route** run in the realm's
+  main checkout; a ticket labelled `factory:ready` and `factory:agent-owned`
+  gets an **implement** run in a holding named from the ticket. The driver does
+  the rest: routing posts the plan and the owner label and leaves the ticket for
+  you to approve; implementing moves the ticket to `factory:in-progress`, builds,
+  verifies, reviews, opens the pull request and moves it to `factory:in-review`.
+  A run that needs a decision or access flags the ticket `factory:needs-you`
+  itself and says why in a comment. Patrol flags the ticket the same way when a
+  run stops on a problem or loses its driver, and when no run could be started
+  at all twice in a row; a flagged ticket is not due again until you remove the
+  flag. A realm whose contract doesn't pass has nothing due, so patrol does
+  nothing there. At most N runs per realm at once
   (default 1); a run resting on you doesn't hold a place. A run keeps going when
   Botalot quits. What an agent may do unattended is set by the step
   skills and the realm's contract, not here. The ticket text becomes the agent's

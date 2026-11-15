@@ -21,7 +21,7 @@ A dragon whose session runs under Claude Code's background supervisor (`claude -
 _Avoid_: Detached dragon, daemon
 
 **Patrol**:
-A realm's setting that picks up tickets labelled `factory:ready` and `factory:agent-owned` on its own and starts a run to implement each.
+A realm's setting that starts the runs that are due on its own: routing a selected ticket, implementing a ready, agent-owned one.
 _Avoid_: Auto-pickup, dispatcher, routine
 
 **Run**:
@@ -31,6 +31,14 @@ _Avoid_: Job, pipeline, quest
 **Run dragon**:
 The dragon that stands for a run, at the run's holding, marked ⚑ with its ticket. It has no terminal: a run's agent steps are headless, so its panel shows the run's steps and activity. Each finished agent step can be opened as an ordinary dragon.
 _Avoid_: Patrol dragon
+
+**Goblin**:
+The bookkeeper that stands for a planning run (routing a ticket, say) at its realm's castle, where a dragon stands for work. It writes while the run works, waves with the gold ring when the run needs you, and leaves when the run is done: the result is on the board.
+_Avoid_: Planner, scribe
+
+**Board**:
+A realm's tickets that wait on you, grouped by what they need: to approve, needs you, yours to build, in review. Opened by tapping the castle, which shows how many wait for approval.
+_Avoid_: Inbox, queue, backlog
 
 **Driver**:
 The part of the `botalot` CLI that runs a run's steps, checks its gates and writes its log. The app starts it and reads what it writes.

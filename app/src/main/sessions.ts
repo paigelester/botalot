@@ -628,7 +628,7 @@ export class SessionManager extends EventEmitter {
 
   /**
    * Apply the driver's runs (the runs folder, as RunsWatcher reads it). Each run in a realm is one dragon for
-   * the whole run, at the run's folder: flying while a step works, waiting when it needs you, resting once
+   * the whole run (a goblin, for a planning run), at the run's folder: flying while a step works, waiting when it needs you, resting once
    * done, fallen if it stopped. Each call is the full truth: a run dragon whose run is missing from it leaves.
    */
   applyRuns(runs: RunView[], projects: Project[]): void {
@@ -638,6 +638,8 @@ export class SessionManager extends EventEmitter {
       const realm = projects.find((p) => samePath(p.path, run.mainRepo))
       if (!realm || this.buriedRuns.has(run.id)) continue
       if (!isOpenRun(run) && now - run.updatedAt > RUN_LINGER_MS) continue
+      // A planning run that finished has nothing left to show on the map: its result is on the realm's board.
+      if (run.kind === 'planning' && run.status === 'done') continue
       const id = 'run-' + run.id
       seen.add(id)
       const { state, attention } = runDragonState(run)

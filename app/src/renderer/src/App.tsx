@@ -8,6 +8,8 @@ import { WaitingPanel } from './panel/WaitingPanel'
 import { RunsPanel } from './panel/RunsPanel'
 import { SummonDialog } from './dialogs/SummonDialog'
 import { RealmsDialog } from './dialogs/RealmsDialog'
+import { RealmBoard } from './dialogs/RealmBoard'
+import { boardCount, type Board } from '@shared/board'
 import { QuotaGauge } from './QuotaGauge'
 
 export function App() {
@@ -20,6 +22,9 @@ export function App() {
   const [waitingOpen, setWaitingOpen] = useState(false)
   const [runs, setRuns] = useState<RunView[]>([])
   const [runsOpen, setRunsOpen] = useState(false)
+  const [boards, setBoards] = useState<Record<string, Board>>({})
+  /** The realm whose board is open: what a castle tap shows. */
+  const [boardFor, setBoardFor] = useState<string | null>(null)
 
   useEffect(() => {
     void api.projects.list().then(setProjects)
@@ -42,8 +47,11 @@ export function App() {
     const offF = api.sessions.onFocus((id) => setSelectedId(id))
     void api.runs.list().then(setRuns)
     const offRuns = api.runs.onUpdate(setRuns)
+    void api.board.all().then(setBoards)
+    const offBoards = api.board.onUpdate(setBoards)
     return () => {
       offRuns()
+      offBoards()
       offP()
       offU()
       offR()
@@ -64,7 +72,7 @@ export function App() {
         e.preventDefault()
         setRunsOpen((o) => !o)
         setWaitingOpen(false)
-      } else if (e.key === 'Escape' && !summon && !realms) {
+      } else if (e.key === 'Escape' && !summon && !realms && !boardFor) {
         if (waitingOpen) setWaitingOpen(false)
         else if (runsOpen) setRunsOpen(false)
         else setSelectedId(null)
@@ -72,12 +80,15 @@ export function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [summon, realms, waitingOpen, runsOpen])
+  }, [summon, realms, waitingOpen, runsOpen, boardFor])
 
   const sessionList = useMemo(() => [...sessions.values()], [sessions])
   const selected = selectedId ? sessions.get(selectedId) : undefined
   // Stuck dragons need you too, even while they still count as working.
-  const waiting = sessionList.filter((s) => s.state === 'waiting' || !!s.stuck).length
+  const boardCounts = useMemo(() => Object.fromEntries(Object.entries(boards).map(([id, b]) => [id, boardCount(b)])), [boards])
+  const toApprove = Object.values(boardCounts).reduce((sum, n) => sum + n, 0)
+  // Tickets waiting for your approval need you as much as a waiting dragon does.
+  const waiting = sessionList.filter((s) => s.state === 'waiting' || !!s.stuck).length + toApprove
   const working = sessionList.filter((s) => s.state === 'working').length
   const dormant = sessionList.filter((s) => s.state === 'dormant').length
   const openRuns = runs.filter(isOpenRun)
@@ -88,7 +99,8 @@ export function App() {
     api.app.setBadge(waiting, waiting > 0 ? drawBadge(waiting) : null)
   }, [waiting])
 
-  const onTapCastle = useCallback((projectId: string) => setSummon({ projectId }), [])
+  const onTapCastle = useCallback((projectId: string) => setBoardFor(projectId), [])
+  const boardProject = boardFor ? projects.find((p) => p.id === boardFor) : undefined
 
   return (
     <div className="app">
@@ -134,7 +146,7 @@ export function App() {
       </header>
 
       <main className={'body' + (selected ? ' with-panel' : '') + (wide ? ' wide' : '')}>
-        <Kingdom projects={projects} sessions={sessionList} selectedId={selectedId} onSelectDragon={setSelectedId} onTapCastle={onTapCastle} />
+        <Kingdom projects={projects} sessions={sessionList} selectedId={selectedId} onSelectDragon={setSelectedId} onTapCastle={onTapCastle} boardCounts={boardCounts} />
         {projects.length === 0 ? (
           <div className="empty">
             <h2>The kingdom is empty</h2>
@@ -145,7 +157,14 @@ export function App() {
           </div>
         ) : null}
         {waitingOpen ? (
-          <WaitingPanel sessions={sessionList} projects={projects} onOpen={(id) => setSelectedId(id)} onClose={() => setWaitingOpen(false)} />
+          <WaitingPanel
+            sessions={sessionList}
+            projects={projects}
+            boards={boards}
+            onOpen={(id) => setSelectedId(id)}
+            onOpenBoard={(id) => setBoardFor(id)}
+            onClose={() => setWaitingOpen(false)}
+          />
         ) : null}
         {runsOpen ? <RunsPanel runs={runs} projects={projects} onClose={() => setRunsOpen(false)} /> : null}
         {selected ? (
@@ -169,9 +188,12 @@ export function App() {
         <span>🌿 green name = wild</span>
         <span>⚑ = a run</span>
         <span className="spacer" />
-        <span>Click a castle to summon there · click a dragon to open its terminal · Esc closes · Ctrl+\ widens</span>
+        <span>Castle: its board · dragon: its terminal · Esc closes · Ctrl+\ widens</span>
       </footer>
 
+      {boardProject && !summon ? (
+        <RealmBoard project={boardProject} board={boards[boardProject.id]} onClose={() => setBoardFor(null)} onSummon={() => setSummon({ projectId: boardProject.id })} />
+      ) : null}
       {summon ? (
         <SummonDialog
           projects={projects}

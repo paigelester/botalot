@@ -8,15 +8,17 @@ interface Props {
   selectedId: string | null
   onSelectDragon(id: string | null): void
   onTapCastle(projectId: string): void
+  /** Tickets waiting for approval on each realm's board, by realm id. */
+  boardCounts: Record<string, number>
 }
 
 /** React wrapper around the PixiJS kingdom. Props flow in, taps flow out. */
-export function Kingdom({ projects, sessions, selectedId, onSelectDragon, onTapCastle }: Props) {
+export function Kingdom({ projects, sessions, selectedId, onSelectDragon, onTapCastle, boardCounts }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const scene = useRef<KingdomScene | null>(null)
   const ready = useRef(false)
-  const latest = useRef({ projects, sessions, selectedId, onSelectDragon, onTapCastle })
-  latest.current = { projects, sessions, selectedId, onSelectDragon, onTapCastle }
+  const latest = useRef({ projects, sessions, selectedId, onSelectDragon, onTapCastle, boardCounts })
+  latest.current = { projects, sessions, selectedId, onSelectDragon, onTapCastle, boardCounts }
 
   useEffect(() => {
     if (!host.current) return
@@ -33,6 +35,7 @@ export function Kingdom({ projects, sessions, selectedId, onSelectDragon, onTapC
       ready.current = true
       s.setProjects(latest.current.projects)
       s.setSessions(latest.current.sessions)
+      s.setBoardCounts(latest.current.boardCounts)
       s.setSelected(latest.current.selectedId)
     })
     return () => {
@@ -48,6 +51,9 @@ export function Kingdom({ projects, sessions, selectedId, onSelectDragon, onTapC
   useEffect(() => {
     if (ready.current) scene.current?.setSessions(sessions)
   }, [sessions])
+  useEffect(() => {
+    if (ready.current) scene.current?.setBoardCounts(boardCounts)
+  }, [boardCounts])
   useEffect(() => {
     if (ready.current) scene.current?.setSelected(selectedId)
   }, [selectedId])

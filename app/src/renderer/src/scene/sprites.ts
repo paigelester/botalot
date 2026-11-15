@@ -41,7 +41,7 @@ interface Manifest {
   animations: Partial<Record<DragonAnim, ManifestAnim>>
 }
 
-let cached: Promise<DragonSpriteSet | null> | null = null
+const cached = new Map<string, Promise<DragonSpriteSet | null>>()
 
 async function loadPixelTexture(url: string): Promise<Texture> {
   const tex = (await Assets.load(url)) as Texture
@@ -49,11 +49,18 @@ async function loadPixelTexture(url: string): Promise<Texture> {
   return tex
 }
 
-export function loadDragonSprites(): Promise<DragonSpriteSet | null> {
-  if (cached) return cached
-  cached = (async () => {
+/** The dragons: every session and every work run. */
+export const loadDragonSprites = (): Promise<DragonSpriteSet | null> => loadSprites('dragons')
+
+/** The goblin bookkeeper: every planning run. Same manifest; fly is writing, roar is waving for attention. */
+export const loadGoblinSprites = (): Promise<DragonSpriteSet | null> => loadSprites('goblin')
+
+function loadSprites(folder: string): Promise<DragonSpriteSet | null> {
+  const known = cached.get(folder)
+  if (known) return known
+  const loading = (async () => {
     try {
-      const res = await fetch('./assets/dragons/manifest.json')
+      const res = await fetch(`./assets/${folder}/manifest.json`)
       if (!res.ok) return null
       const manifest = (await res.json()) as Manifest
       const set: DragonSpriteSet = {
@@ -67,9 +74,9 @@ export function loadDragonSprites(): Promise<DragonSpriteSet | null> {
         if (!anim) continue
         const textures: Texture[] = []
         if (anim.files && anim.files.length > 0) {
-          for (const f of anim.files) textures.push(await loadPixelTexture(`./assets/dragons/${f}`))
+          for (const f of anim.files) textures.push(await loadPixelTexture(`./assets/${folder}/${f}`))
         } else if (anim.file && anim.frames) {
-          const base = await loadPixelTexture(`./assets/dragons/${anim.file}`)
+          const base = await loadPixelTexture(`./assets/${folder}/${anim.file}`)
           for (let i = 0; i < anim.frames; i++) {
             textures.push(
               new Texture({
@@ -86,5 +93,6 @@ export function loadDragonSprites(): Promise<DragonSpriteSet | null> {
       return null
     }
   })()
-  return cached
+  cached.set(folder, loading)
+  return loading
 }
