@@ -85,7 +85,7 @@ Requires Node 20+, git, and `claude` (Claude Code) on PATH. Windows is the prima
   shows how many wait for approval, and they count in "awaiting you". Summoning a
   dragon moved from the castle tap to a button on the board; the top bar's
   Summon dragon is unchanged.
-- **Patrol.** Switch on Patrol for a realm in the Realms dialog and, every couple
+- **Patrol.** Switch on Patrol for a realm, on its board or in the Realms dialog, and, every couple
   of minutes while the app runs, it starts the runs that are due there. What is
   due is the CLI's answer (`botalot due`): each ticket whose labels match the
   trigger of a workflow the realm's contract turns on, oldest first. A ticket

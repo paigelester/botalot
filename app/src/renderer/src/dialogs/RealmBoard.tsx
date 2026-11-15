@@ -24,6 +24,17 @@ const asIssue = (t: BoardTicket): Issue => ({ key: String(t.number), title: t.ti
 export function RealmBoard({ project, board, onClose, onSummon }: Props) {
   const [busy, setBusy] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [patrol, setPatrol] = useState(!!project.patrol?.enabled)
+
+  async function setPatrolOn(enabled: boolean) {
+    setPatrol(enabled)
+    try {
+      await api.projects.update(project.id, { patrol: { max: 1, ...project.patrol, enabled } })
+    } catch (err) {
+      setPatrol(!enabled)
+      setError(clean(err))
+    }
+  }
 
   useEffect(() => {
     void api.board.refresh(project.id)
@@ -54,6 +65,12 @@ export function RealmBoard({ project, board, onClose, onSummon }: Props) {
         <div className="board-head">
           <h2>{project.name}: the board</h2>
           <span className="spacer" />
+          {board ? (
+            <label className="board-patrol" title="Patrol starts this realm's due runs on its own while Botalot is open: routing for selected tickets, building for ready, agent-owned ones.">
+              <input type="checkbox" checked={patrol} onChange={(e) => void setPatrolOn(e.target.checked)} />
+              Patrol {patrol ? 'on' : 'off'}
+            </label>
+          ) : null}
           <button className="primary" onClick={onSummon}>
             Summon a dragon
           </button>

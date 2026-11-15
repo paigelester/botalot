@@ -120,14 +120,14 @@ export function RealmsDialog({ onClose }: Props) {
                 {setup?.id === p.id && setup.output ? <pre className={'realm-setup' + (setup.ok ? '' : ' realm-setup-failed')}>{setup.output}</pre> : null}
                 {t.kind !== 'none' ? (
                   <div className="realm-patrol">
-                    <label className="radio" title="Every couple of minutes while Botalot runs, start a factory run of the implement workflow for the oldest ticket labelled factory:ready and factory:agent-owned. The realm needs a .factory/contract.json.">
+                    <label className="radio" title="Every couple of minutes while Botalot runs, start the runs that are due here: routing for tickets labelled factory:selected, building for tickets labelled factory:ready and factory:agent-owned. The realm needs a .factory/contract.json.">
                       <input
                         type="checkbox"
                         checked={!!p.patrol?.enabled}
                         onChange={(e) => void patch(p.id, { patrol: { max: 1, ...p.patrol, enabled: e.target.checked } })}
                       />
                       <span>
-                        <b>Patrol</b> — implement <code>factory:ready</code> + <code>factory:agent-owned</code> tickets on its own
+                        <b>Patrol</b> — start this realm's due runs on its own: route selected tickets, build ready agent-owned ones
                       </span>
                     </label>
                     <span className="realm-patrol-max">

@@ -900,6 +900,16 @@ button.pill:not(.pill-alert) {
   border-left-color: var(--danger);
 }
 
+/* The Patrol switch at the top of a realm's board */
+.board-patrol {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 /* Patrol settings under a realm in the Realms dialog */
 .realm-patrol {
   display: flex;
