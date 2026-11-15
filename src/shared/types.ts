@@ -1,5 +1,6 @@
 // Types shared between the Electron main process and the renderer.
 import type { Quota } from './quota.ts'
+import type { RunView } from './runs.ts'
 
 /** dormant = recorded from an earlier run, not running now; wake it to resume the agent's session. */
 export type SessionState = 'working' | 'waiting' | 'idle' | 'dead' | 'dormant'
@@ -25,25 +26,14 @@ export interface Project {
   source: 'discovered' | 'manual'
   /** Issue tracker for this realm. Inferred as github when origin points at github.com, otherwise none. */
   tracker?: Tracker
-  /** Patrol: pick up tickets labelled factory:ready + factory:agent-owned on its own. Off when absent. */
+  /** Patrol: start a factory run for each ticket labelled factory:ready + factory:agent-owned. Off when absent. */
   patrol?: PatrolSettings
 }
 
 export interface PatrolSettings {
   enabled: boolean
-  /** Most patrol dragons alive at once in this realm. */
+  /** Most patrol runs going at once in this realm. */
   max: number
-  /** Shell commands its dragons run without asking; DEFAULT_PATROL_ALLOW when absent. */
-  allow?: string[]
-}
-
-/** What a patrol dragon is working on, and how its issue was settled once it was. */
-export interface PatrolMark {
-  issueKey: string
-  issueUrl?: string
-  /** done = PR opened; retried = died, issue handed back to patrol; human = died twice, handed to a human. */
-  /** done: a PR exists · retried: back to factory:ready · human: flagged factory:agent-blocked. */
-  settled?: 'done' | 'retried' | 'human'
 }
 
 export interface Worktree {
@@ -78,8 +68,6 @@ export interface Session {
    * (working with no activity, or waiting too long), never reported by the agent. Clears on new activity.
    */
   stuck?: string
-  /** Set on a patrol dragon: summoned by patrol for an issue rather than by you. */
-  patrol?: PatrolMark
   /** The pull request for this dragon's branch, when its realm is on GitHub and one exists. */
   pr?: PullRequestInfo
   /** Most recent hook event name, for debugging and the status strip. */
@@ -154,8 +142,8 @@ export interface SpawnRequest {
   name?: string
   /** Run as a background session (`claude --bg`) that keeps going after the app quits. Needs a prompt. */
   background?: boolean
-  /** Background only: let it work unattended. File edits are accepted, and these shell commands run without asking. */
-  allow?: string[]
+  /** Open an earlier Claude Code session by its id instead of starting a new one, e.g. a factory run's step. */
+  resume?: string
 }
 
 export interface DragonApi {
@@ -202,6 +190,17 @@ export interface DragonApi {
   app: {
     /** Show the waiting count on the taskbar icon. `png` is the badge image as a data URL; count 0 clears it. */
     setBadge(count: number, png: string | null): void
+  }
+  runs: {
+    /** Every factory run the driver knows of, newest first. */
+    list(): Promise<RunView[]>
+    /** Carry on a run that is resting (`factory next`). Resolves once the driver has been started. */
+    carryOn(id: string): Promise<void>
+    /** End a run, stopping its driver and the agent it is running. */
+    stop(id: string): Promise<void>
+    /** Open one of a run's agent sessions as a dragon in the run's folder, resuming where the step left off. */
+    openSession(runId: string, sessionId: string): Promise<Session>
+    onUpdate(cb: (runs: RunView[]) => void): () => void
   }
   quota: {
     /** The latest subscription quota reading from any Claude dragon, or null if none has reported one. */

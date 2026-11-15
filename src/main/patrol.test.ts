@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import type { Issue, PatrolMark, PatrolSettings, Project, PullRequestInfo, Session, SpawnRequest } from '../shared/types.ts'
+import type { Issue, PatrolSettings, Project } from '../shared/types.ts'
+import type { RunView } from '../shared/runs.ts'
 import { LABEL, Patrol, type PatrolTracker } from './patrol.ts'
-import { DEFAULT_PATROL_ALLOW } from '../shared/patrol.ts'
 
 /** A tracker in memory: issues with labels, and every comment written. */
 class FakeTracker implements PatrolTracker {
@@ -11,12 +11,8 @@ class FakeTracker implements PatrolTracker {
   constructor(issues: (Issue & { createdAt: number })[]) {
     this.issues = issues
   }
-  async oldestReady() {
-    const ready = this.issues.filter((i) => i.labels.includes(LABEL.ready) && i.labels.includes(LABEL.agent)).sort((a, b) => a.createdAt - b.createdAt)
-    return ready[0] ?? null
-  }
-  async labels(key: string) {
-    return [...this.find(key).labels]
+  async ready() {
+    return this.issues.filter((i) => i.labels.includes(LABEL.ready) && i.labels.includes(LABEL.agent)).sort((a, b) => a.createdAt - b.createdAt)
   }
   async relabel(key: string, remove: string[], add: string[]) {
     const i = this.find(key)
@@ -36,127 +32,120 @@ class FakeTracker implements PatrolTracker {
 const issue = (key: string, createdAt: number, labels: string[] = [LABEL.ready, LABEL.agent]) => ({ key, title: `Issue ${key}`, body: 'Do it.', labels, assignees: [], updatedAt: '', createdAt })
 
 function realm(patrol: PatrolSettings = { enabled: true, max: 1 }): Project {
-  return { id: 'r1', path: '/repo', name: 'Repo', tint: 0, worktreeLayout: 'sibling', hidden: false, isGit: true, source: 'manual', tracker: { kind: 'github' }, patrol }
+  return { id: 'r1', path: 'C:\\code\\repo', name: 'Repo', tint: 0, worktreeLayout: 'sibling', hidden: false, isGit: true, source: 'manual', tracker: { kind: 'github' }, patrol }
 }
 
-/** Patrol wired to fakes. Dragons it summons start working; tests then change their state or give them PRs. */
+function run(ticket: number, over: Partial<RunView> = {}): RunView {
+  return {
+    id: `repo-${ticket}-x`,
+    mainRepo: 'C:/code/repo',
+    cwd: 'C:/code/repo-worktrees/x',
+    repoName: 'repo',
+    ticket,
+    workflow: 'implement',
+    owner: 'agent-owned',
+    status: 'running',
+    alive: true,
+    branch: null,
+    pr: null,
+    waitReason: null,
+    waitDetail: null,
+    currentStep: 'build',
+    startedAt: 0,
+    updatedAt: 0,
+    seconds: 0,
+    cost: 0,
+    steps: [],
+    ...over
+  }
+}
+
+/** Patrol wired to fakes. A started run stays "starting" until the test finishes it with `finish` or `fail`. */
 function setup(issues: (Issue & { createdAt: number })[], project = realm()) {
   const tracker = new FakeTracker(issues)
-  const dragons: Session[] = []
-  const prs = new Map<string, PullRequestInfo>()
+  const runs: RunView[] = []
   const attempts = new Map<string, number>()
-  const summons: SpawnRequest[] = []
-  let failSummon: string | null = null
+  const settled = new Set<string>()
+  const started: { key: string; finish(): void; fail(why: string): void }[] = []
   const patrol = new Patrol({
     projects: () => [project],
-    sessions: () => dragons,
+    runs: () => runs,
     trackerFor: () => tracker,
-    pullRequest: async (_repo, branch) => prs.get(branch) ?? null,
-    summon: async (req) => {
-      summons.push(req)
-      if (failSummon) throw new Error(failSummon)
-      const s: Session = {
-        id: 'd' + dragons.length,
-        name: 'Dragon' + dragons.length,
-        agent: 'claude',
-        projectId: req.projectId,
-        cwd: '/wt',
-        branch: req.target.kind === 'new' ? req.target.branch : '',
-        isWorktree: true,
-        state: 'working',
-        stateSince: 0,
-        startedAt: 0
-      }
-      dragons.push(s)
-      return s
-    },
-    mark: (id: string, mark: PatrolMark) => {
-      const s = dragons.find((d) => d.id === id)!
-      s.patrol = mark
-    },
-    attempts: { get: (k) => attempts.get(k) ?? 0, set: (k, n) => attempts.set(k, n) },
+    start: (_p, i) => new Promise<void>((resolve, reject) => started.push({ key: i.key, finish: resolve, fail: (why) => reject(new Error(why)) })),
+    memory: { attempts: (k) => attempts.get(k) ?? 0, setAttempts: (k, n) => void attempts.set(k, n), settled: (id) => settled.has(id), settle: (id) => void settled.add(id) },
     log: () => {}
   })
-  return { patrol, tracker, dragons, prs, summons, failSummon: (msg: string | null) => (failSummon = msg) }
+  /** Let the promise chains patrol hung on a start settle. */
+  const settle = () => new Promise((r) => setTimeout(r, 0))
+  return { patrol, tracker, runs, started, attempts, settle }
 }
 
-test('takes the oldest ready agent-owned ticket: relabels it, summons a background dragon on its branch, marks the dragon', async () => {
-  const t = setup([issue('9', 2), issue('4', 1), issue('7', 3, ['bug']), issue('2', 0, [LABEL.ready, 'factory:human-owned'])])
-  await t.patrol.tick()
-  assert.equal(t.summons.length, 1)
-  const req = t.summons[0]
-  assert.equal(req.background, true)
-  assert.deepEqual(req.allow, DEFAULT_PATROL_ALLOW)
-  assert.equal(req.agent, 'claude')
-  assert.deepEqual(req.target, { kind: 'new', branch: '4-issue-4' })
-  assert.match(req.prompt ?? '', /GitHub issue #4/)
-  assert.match(req.prompt ?? '', /implement-ticket skill on #4/)
-  assert.deepEqual(t.tracker.find('4').labels, [LABEL.agent, LABEL.working])
-  assert.deepEqual(t.tracker.find('2').labels, [LABEL.ready, 'factory:human-owned'], 'human-owned tickets are left alone')
-  assert.deepEqual(t.dragons[0].patrol, { issueKey: '4', issueUrl: undefined })
+test('starts a run for the oldest ready agent-owned ticket and leaves its labels to the driver', async () => {
+  const { patrol, tracker, started } = setup([issue('7', 2), issue('3', 1), issue('9', 0, [LABEL.ready])])
+  await patrol.tick()
+  assert.deepEqual(started.map((s) => s.key), ['3'])
+  assert.deepEqual(tracker.find('3').labels, [LABEL.ready, LABEL.agent])
+  assert.equal(tracker.comments.length, 0)
 })
 
-test("uses the realm's own allow list when it has one", async () => {
-  const t = setup([issue('1', 1)], realm({ enabled: true, max: 1, allow: ['dotnet test'] }))
-  await t.patrol.tick()
-  assert.deepEqual(t.summons[0].allow, ['dotnet test'])
+test('holds to the realm limit: a run that is starting or going takes a place, one resting on a human does not', async () => {
+  const { patrol, runs, started, settle } = setup([issue('1', 1), issue('2', 2), issue('3', 3)])
+  await patrol.tick()
+  await patrol.tick()
+  assert.deepEqual(started.map((s) => s.key), ['1'], 'the first start holds the only place')
+
+  runs.push(run(1))
+  started[0].finish()
+  await settle()
+  await patrol.tick()
+  assert.deepEqual(started.map((s) => s.key), ['1'], 'its run is going, so the place is still held')
+
+  runs[0] = run(1, { status: 'waiting-you', alive: false })
+  await patrol.tick()
+  assert.deepEqual(started.map((s) => s.key), ['1', '2'], 'a run waiting on you frees the place, and #1 is not started again')
 })
 
-test('keeps to the realm cap', async () => {
-  const t = setup([issue('1', 1), issue('2', 2), issue('3', 3)], realm({ enabled: true, max: 2 }))
-  await t.patrol.tick()
-  await t.patrol.tick()
-  await t.patrol.tick()
-  assert.equal(t.summons.length, 2)
-  assert.deepEqual(t.tracker.find('3').labels, [LABEL.ready, LABEL.agent])
+test('a realm that allows two starts two at once', async () => {
+  const { patrol, started } = setup([issue('1', 1), issue('2', 2), issue('3', 3)], realm({ enabled: true, max: 2 }))
+  await patrol.tick()
+  assert.deepEqual(started.map((s) => s.key), ['1', '2'])
 })
 
-test('does nothing when patrol is off', async () => {
-  const t = setup([issue('1', 1)], realm({ enabled: false, max: 1 }))
-  await t.patrol.tick()
-  assert.equal(t.summons.length, 0)
+test('a ticket that cannot be started is tried again, then handed to a human', async () => {
+  const { patrol, tracker, started, settle } = setup([issue('5', 1)])
+  await patrol.tick()
+  started[0].fail('The contract does not pass:\n- .factory/contract.json is missing.')
+  await settle()
+  assert.deepEqual(tracker.find('5').labels, [LABEL.ready, LABEL.agent], 'still ready after one failure')
+
+  await patrol.tick()
+  started[1].fail('The contract does not pass:\n- .factory/contract.json is missing.')
+  await settle()
+  assert.deepEqual(tracker.find('5').labels, [LABEL.agent, LABEL.needsYou])
+  assert.match(tracker.comments[0].text, /could not start a factory run[\s\S]*contract\.json is missing[\s\S]*factory:ready again/)
+
+  await patrol.tick()
+  assert.equal(started.length, 2, 'patrol leaves it alone until it is ready again')
 })
 
-test('skips an issue another patrol already took', async () => {
-  const t = setup([issue('1', 1, [LABEL.ready, LABEL.agent, LABEL.working])])
-  await t.patrol.tick()
-  assert.equal(t.summons.length, 0)
+test('a run that fell over is flagged on its ticket once', async () => {
+  const { patrol, tracker, runs } = setup([issue('4', 1, [LABEL.agent, 'factory:in-progress'])])
+  runs.push(run(4, { status: 'running', alive: false, currentStep: 'verify' }))
+  await patrol.tick()
+  await patrol.tick()
+  assert.ok(tracker.find('4').labels.includes(LABEL.needsYou))
+  assert.equal(tracker.comments.length, 1)
+  assert.match(tracker.comments[0].text, /repo-4-x` lost its driver at the "verify" step[\s\S]*factory next repo-4-x/)
 })
 
-test('a pull request moves the ticket to in-review and frees the slot for the next one', async () => {
-  const t = setup([issue('1', 1), issue('2', 2)])
-  await t.patrol.tick()
-  t.prs.set('1-issue-1', { number: 10, url: 'https://example/pull/10', state: 'OPEN', draft: true, ci: 'pending' })
-  await t.patrol.tick()
-  assert.deepEqual(t.tracker.find('1').labels, [LABEL.agent, LABEL.review])
-  assert.equal(t.dragons[0].patrol?.settled, 'done')
-  assert.match(t.tracker.comments[0].text, /pull\/10/)
-  assert.equal(t.summons.length, 2, 'the next issue is taken in the same round')
-  assert.deepEqual(t.tracker.find('2').labels, [LABEL.agent, LABEL.working])
-})
+test('patrol ignores other realms, human-owned runs, and realms with patrol off', async () => {
+  const off = setup([issue('1', 1)], realm({ enabled: false, max: 1 }))
+  await off.patrol.tick()
+  assert.equal(off.started.length, 0)
 
-test('a dragon that dies is retried once, then the ticket is flagged agent-blocked', async () => {
-  const t = setup([issue('1', 1)])
-  await t.patrol.tick()
-  t.dragons[0].state = 'dead'
-  await t.patrol.tick()
-  assert.equal(t.dragons[0].patrol?.settled, 'retried')
-  assert.equal(t.summons.length, 2, 'retried in the same round')
-  assert.deepEqual(t.tracker.find('1').labels, [LABEL.agent, LABEL.working])
-
-  t.dragons[1].state = 'dead'
-  await t.patrol.tick()
-  assert.equal(t.dragons[1].patrol?.settled, 'human')
-  assert.deepEqual(t.tracker.find('1').labels, [LABEL.agent, LABEL.working, LABEL.blocked])
-  assert.equal(t.summons.length, 2, 'no third attempt')
-  assert.equal(t.tracker.comments.length, 2)
-  assert.match(t.tracker.comments[1].text, /factory:agent-blocked/)
-})
-
-test('a failed summon counts as an attempt and puts the label back', async () => {
-  const t = setup([issue('1', 1)])
-  t.failSummon('Workspace not trusted')
-  await t.patrol.tick()
-  assert.deepEqual(t.tracker.find('1').labels, [LABEL.agent, LABEL.ready])
-  assert.match(t.tracker.comments[0].text, /Workspace not trusted/)
+  const { patrol, tracker, runs, started } = setup([issue('1', 1)])
+  runs.push(run(8, { mainRepo: 'C:/code/other', status: 'stopped' }), run(9, { owner: 'human-owned', status: 'stopped' }))
+  await patrol.tick()
+  assert.equal(tracker.comments.length, 0)
+  assert.deepEqual(started.map((s) => s.key), ['1'])
 })

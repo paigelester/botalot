@@ -269,9 +269,9 @@ class PlaceholderDragon extends Container {
   }
 }
 
-/** The name under a dragon: ⚑ marks a dragon patrol summoned. */
+/** The name under a dragon. */
 function nameText(s: Session): string {
-  return s.name + (s.patrol ? ' ⚑' : '')
+  return s.name
 }
 
 function lighten(c: number): number {

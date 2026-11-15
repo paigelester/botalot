@@ -53,27 +53,35 @@ Requires Node 20+, git, and `claude` (Claude Code) on PATH. Windows is the prima
   opening them. The waiting count also shows as a badge on the taskbar icon, and
   when a dragon starts waiting while the window is not focused, an OS notification
   says so; clicking it opens that dragon.
+- **Factory runs.** The "runs" pill in the top bar (or Ctrl+Shift+R) opens every
+  run of the software factory's driver (the `factory` command from
+  `paigelester/skills`; see [The factory](#the-factory)), the ones that need you
+  first. Each run shows its ticket, where it is, and every step with its
+  duration, its weight (what it would have cost at API prices), the tools and
+  skills its agent used, and the checks it ran. Click a step's session to open
+  it as a dragon in the run's folder, resuming where the step left off
+  (`claude --resume`). **Carry on** runs `factory next` for a run that is
+  resting on you; **Stop** ends one. Botalot holds no run logic: it reads the
+  driver's run logs in `~/.factory/runs/`, so runs started from a terminal show
+  up too.
 - **Patrol.** Switch on Patrol for a realm in the Realms dialog and, every couple
-  of minutes while the app runs, it takes the oldest open ticket labelled both
-  `factory:ready` and `factory:agent-owned`, moves it to `factory:in-progress`, and
-  summons a background dragon (marked ⚑) on a new holding named from the ticket,
-  told to work unattended with the `implement-ticket` skill: build, verify, review
-  and open a pull request. When that branch has a PR, the ticket becomes
-  `factory:in-review`. If the dragon falls first, the ticket goes back to
-  `factory:ready` for one more try, then gets flagged `factory:agent-blocked`, with a
-  comment each time. A dragon that needs a decision or access flags the ticket
-  itself (`factory:agent-awaiting-human` / `factory:agent-blocked`) and says why in
-  a comment. The factory skills and labels come from `paigelester/skills`; see
-  [Factory skills](#factory-skills). At most
-  N patrol dragons per realm at once (default 1). Labels and pull requests are
-  read and changed with `gh`. Attempt counts live in `patrol.json` in the config folder.
-  Patrol dragons work unattended, so they accept file edits and run the realm's
-  allowed commands without asking (by default the checks, `git add/commit/push`
-  and `gh` for issues and PRs; edit the list under the realm in Realms). Any other
-  command waits for you and shows up as awaiting you. The ticket text becomes the
-  dragon's instructions, so label only tickets you have read `factory:ready`.
-  Realms that saved their own allow list before the factory labels need
-  `gh issue edit *` and `gh issue comment *` added (or press Reset to defaults in Realms).
+  of minutes while the app runs, it takes the oldest open tickets labelled both
+  `factory:ready` and `factory:agent-owned`, makes a holding named from each
+  ticket, and starts a factory run of the implement workflow there
+  (`factory start implement <ticket>`). The driver does the rest: it moves the
+  ticket to `factory:in-progress`, builds, verifies, reviews, opens the pull
+  request and moves the ticket to `factory:in-review`. A run that needs a
+  decision or access flags the ticket `factory:needs-you` itself and says why in
+  a comment. Patrol flags the ticket the same way when a run stops on a problem
+  or loses its driver, and when no run could be started at all twice in a row
+  (the realm has no passing `.factory/contract.json`, say); such a ticket loses
+  `factory:ready` until you label it again. At most N runs per realm at once
+  (default 1); a run resting on you doesn't hold a place. A run keeps going when
+  Botalot quits. What an agent may do unattended is set by the factory's step
+  skills and the realm's contract, not here. The ticket text becomes the agent's
+  instructions, so label only tickets you have read `factory:ready`. Labels are
+  read and changed with `gh`; patrol's memory lives in `patrol.json` in the
+  config folder.
 - **Pull requests.** In a realm whose tracker is GitHub, every holding with a
   dragon shows its branch's pull request under the signpost: `PR #142` with a CI
   dot (green passed, gold running, red failed, grey no checks), or `draft`,
@@ -110,22 +118,23 @@ Requires Node 20+, git, and `claude` (Claude Code) on PATH. Windows is the prima
   `claude rm`. On relaunch it comes back live. If its session is gone, it falls,
   and waking it resumes the conversation in the app's own terminal.
 
-## Factory skills
+## The factory
 
-Patrol dragons follow the software factory's skills, installed from
-[paigelester/skills](https://github.com/paigelester/skills) into `.agents/skills/`
-(linked into `.claude/skills/`) by the `skills` CLI and recorded in `skills-lock.json`:
+Factory runs and patrol are driven by the software factory in
+[paigelester/skills](https://github.com/paigelester/skills): its workflows, step
+skills and knowledge, and the `factory` driver that runs them. Botalot starts the
+driver and shows what it logs; it needs `factory` on the PATH (`npm link` in a
+clone of that repo).
 
-- `setup-factory`: sets up a realm's GitHub repo for the factory (its `factory:*` labels).
-- `factory-labels`: the `factory:*` ticket labels and how to move a ticket between them.
-- `implement-ticket`: one agent-owned ticket from `factory:ready` to an open pull request.
-- `review-implementation`: the independent review of an implementation, by an agent or a developer, that `implement-ticket` runs in a subagent. Use it on a human-owned ticket too, before opening the PR.
+A realm can run a workflow only once it has a contract, `.factory/contract.json`,
+that passes `factory check`, and its GitHub repo has the factory's labels:
 
-    npm run skills:update                   # pull the latest skills
-    npm run factory:setup -- owner/repo     # set up a realm's GitHub repo (add --check first to only report)
+    factory check             # does this realm's contract pass?
+    factory labels --fix      # create the factory's labels on its GitHub repo
+    factory start implement 12    # start a run by hand; it shows in the runs panel
 
-To use patrol in another realm, install the same skills there
-(`npx skills add paigelester/skills --skill setup-factory --skill factory-labels --skill implement-ticket --skill review-implementation`).
+This repo is such a realm: its contract is `.factory/contract.json`, and the
+factory plugin is turned on for it in `.claude/settings.json`.
 
 ## Pixel-art dragons
 

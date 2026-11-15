@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Project, Session } from '@shared/types'
+import { isOpenRun, runNeedsYou, type RunView } from '@shared/runs'
 import { api } from './api'
 import { Kingdom } from './scene/Kingdom'
 import { SessionPanel } from './panel/SessionPanel'
 import { WaitingPanel } from './panel/WaitingPanel'
+import { RunsPanel } from './panel/RunsPanel'
 import { SummonDialog } from './dialogs/SummonDialog'
 import { RealmsDialog } from './dialogs/RealmsDialog'
 import { QuotaGauge } from './QuotaGauge'
@@ -16,6 +18,8 @@ export function App() {
   const [summon, setSummon] = useState<{ projectId: string | null } | null>(null)
   const [realms, setRealms] = useState(false)
   const [waitingOpen, setWaitingOpen] = useState(false)
+  const [runs, setRuns] = useState<RunView[]>([])
+  const [runsOpen, setRunsOpen] = useState(false)
 
   useEffect(() => {
     void api.projects.list().then(setProjects)
@@ -36,7 +40,10 @@ export function App() {
       })
     )
     const offF = api.sessions.onFocus((id) => setSelectedId(id))
+    void api.runs.list().then(setRuns)
+    const offRuns = api.runs.onUpdate(setRuns)
     return () => {
+      offRuns()
       offP()
       offU()
       offR()
@@ -52,14 +59,20 @@ export function App() {
       } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') {
         e.preventDefault()
         setWaitingOpen((o) => !o)
+        setRunsOpen(false)
+      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault()
+        setRunsOpen((o) => !o)
+        setWaitingOpen(false)
       } else if (e.key === 'Escape' && !summon && !realms) {
         if (waitingOpen) setWaitingOpen(false)
+        else if (runsOpen) setRunsOpen(false)
         else setSelectedId(null)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [summon, realms, waitingOpen])
+  }, [summon, realms, waitingOpen, runsOpen])
 
   const sessionList = useMemo(() => [...sessions.values()], [sessions])
   const selected = selectedId ? sessions.get(selectedId) : undefined
@@ -67,6 +80,8 @@ export function App() {
   const waiting = sessionList.filter((s) => s.state === 'waiting' || !!s.stuck).length
   const working = sessionList.filter((s) => s.state === 'working').length
   const dormant = sessionList.filter((s) => s.state === 'dormant').length
+  const openRuns = runs.filter(isOpenRun)
+  const runsNeedYou = openRuns.filter(runNeedsYou).length
 
   useEffect(() => {
     document.title = waiting > 0 ? `(${waiting}) Botalot` : 'Botalot'
@@ -85,7 +100,10 @@ export function App() {
           <span className="pill pill-working">{working} questing</span>
           <button
             className={'pill pill-waiting' + (waiting > 0 ? ' pill-alert' : '') + (waitingOpen ? ' pill-open' : '')}
-            onClick={() => setWaitingOpen((o) => !o)}
+            onClick={() => {
+              setWaitingOpen((o) => !o)
+              setRunsOpen(false)
+            }}
             title="Show who awaits you (Ctrl+Shift+A)"
           >
             {waiting} awaiting you
@@ -93,6 +111,17 @@ export function App() {
           <span className="pill">
             {sessionList.length} dragons{dormant ? ', ' + dormant + ' dormant' : ''}
           </span>
+          <button
+            className={'pill pill-runs' + (runsNeedYou > 0 ? ' pill-alert' : '') + (runsOpen ? ' pill-open' : '')}
+            onClick={() => {
+              setRunsOpen((o) => !o)
+              setWaitingOpen(false)
+            }}
+            title="Show factory runs (Ctrl+Shift+R)"
+          >
+            {openRuns.length} run{openRuns.length === 1 ? '' : 's'}
+            {runsNeedYou > 0 ? ', ' + runsNeedYou + ' need you' : ''}
+          </button>
         </div>
         <QuotaGauge />
         <span className="spacer" />
@@ -118,6 +147,7 @@ export function App() {
         {waitingOpen ? (
           <WaitingPanel sessions={sessionList} projects={projects} onOpen={(id) => setSelectedId(id)} onClose={() => setWaitingOpen(false)} />
         ) : null}
+        {runsOpen ? <RunsPanel runs={runs} projects={projects} onClose={() => setRunsOpen(false)} /> : null}
         {selected ? (
           <SessionPanel
             session={selected}
@@ -137,7 +167,6 @@ export function App() {
         <span>🌙 faded = dormant</span>
         <span>⭕ red ring = stuck</span>
         <span>🌿 green name = wild</span>
-        <span>⚑ = patrol</span>
         <span className="spacer" />
         <span>Click a castle to summon there · click a dragon to open its terminal · Esc closes · Ctrl+\ widens</span>
       </footer>

@@ -21,11 +21,16 @@ A dragon whose session runs under Claude Code's background supervisor (`claude -
 _Avoid_: Detached dragon, daemon
 
 **Patrol**:
-A realm's setting that picks up tickets labelled `factory:ready` and `factory:agent-owned` on its own and summons a dragon to implement each.
+A realm's setting that picks up tickets labelled `factory:ready` and `factory:agent-owned` on its own and starts a run to implement each.
 _Avoid_: Auto-pickup, dispatcher, routine
 
-**Patrol dragon**:
-A background dragon patrol summoned for an issue. Marked ⚑.
+**Run**:
+One pass of a factory workflow over a ticket, moved step by step by the factory's driver (the `factory` command), not by the app. Shown in the runs panel; each agent step of a run can be opened as a dragon.
+_Avoid_: Job, pipeline, quest
+
+**Driver**:
+The `factory` command from `paigelester/skills`. It runs a run's steps, checks its gates and writes its log; the app starts it and reads what it writes.
+_Avoid_: Runner, orchestrator
 
 **Wild dragon**:
 A Claude Code background session the app did not summon, discovered through `claude agents --json`. The app shows and attaches to it but never records, slays or wakes it.

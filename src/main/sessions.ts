@@ -4,7 +4,7 @@ import { execFile } from 'child_process'
 import { existsSync } from 'fs'
 import { homedir } from 'os'
 import * as pty from 'node-pty'
-import { UNCLAIMED_REALM, type AgentKind, type PatrolMark, type Project, type PullRequestInfo, type Session, type SessionState, type SpawnRequest } from '@shared/types'
+import { UNCLAIMED_REALM, type AgentKind, type Project, type PullRequestInfo, type Session, type SessionState, type SpawnRequest } from '@shared/types'
 import { addWorktree, currentBranch, gitInfo, listWorktrees } from './git'
 import { randomName } from './names'
 import type { HookEvent } from './hooks'
@@ -14,8 +14,6 @@ import { normalizePath } from './projects'
 import { AGENTS, childEnv, resolveOnPath } from './agents'
 import { loadSessionRecords, saveSessionRecords, type SessionRecord } from './sessionStore'
 import { stuckThresholds, type StuckThresholds } from './config'
-import { withPermissions } from './hooks'
-import { patrolPermissions } from '@shared/patrol'
 
 const SCROLLBACK_LIMIT = 400_000 // characters kept per session for replay when a panel opens
 const HOOK_AUTHORITY_MS = 4000 // after a hook event, ignore the registry for this long
@@ -96,7 +94,6 @@ export class SessionManager extends EventEmitter {
       startedAt: s.startedAt,
       agentSessionId: s.claudeSessionId,
       backgroundId: s.backgroundId,
-      patrol: s.patrol,
       lastSeenAt: Date.now()
     }
   }
@@ -127,7 +124,6 @@ export class SessionManager extends EventEmitter {
         startedAt: r.startedAt,
         claudeSessionId: r.agentSessionId,
         backgroundId: r.backgroundId,
-        patrol: r.patrol,
         attention: folderExists ? (getProject(r.projectId) ? undefined : 'Its realm is gone; bury it') : 'Holding folder is gone',
         resumable: folderExists && !!getProject(r.projectId)
       }
@@ -223,13 +219,11 @@ export class SessionManager extends EventEmitter {
       attention: baseNote,
       startedAt: Date.now()
     }
+    // A resumed session is already known by its agent id, so hooks and a later wake find it.
+    if (req.resume) session.claudeSessionId = req.resume
     if (req.background) {
       // Dispatched before the dragon exists: if Claude Code refuses (untrusted folder, say), nothing is left behind.
-      // An unattended dragon (patrol) gets its own settings: the background hooks plus its permission rules.
-      const settings = req.allow
-        ? withPermissions(this.backgroundHookSettingsPath, `dragon-hooks-patrol-${project.id}.json`, patrolPermissions(req.allow))
-        : this.backgroundHookSettingsPath
-      const out = await runClaude(binary, ['--bg', '--name', name, '--settings', settings, prompt!], cwd)
+      const out = await runClaude(binary, ['--bg', '--name', name, '--settings', this.backgroundHookSettingsPath, prompt!], cwd)
       const m = /backgrounded\s*·\s*([0-9a-f]{6,})/i.exec(plain(out))
       if (!m) throw new Error('Claude Code did not start a background session: ' + (plain(out).trim().split(/\r?\n/)[0] || 'no output'))
       session.backgroundId = m[1]
@@ -244,7 +238,7 @@ export class SessionManager extends EventEmitter {
       this.publish(l)
       return { ...session }
     }
-    const args = def.args({ prompt, hookSettingsPath: this.hookSettingsPath })
+    const args = req.resume ? def.resumeArgs({ agentSessionId: req.resume, hookSettingsPath: this.hookSettingsPath }) : def.args({ prompt, hookSettingsPath: this.hookSettingsPath })
     this.launch(l, binary, args)
     return { ...session }
   }
@@ -391,15 +385,6 @@ export class SessionManager extends EventEmitter {
       this.publish(l)
     }
     return { ...l.session }
-  }
-
-  /** Mark a dragon as patrol's, or record how its issue was settled. Recorded, so it survives a restart. */
-  setPatrol(id: string, mark: PatrolMark): void {
-    const l = this.live.get(id)
-    if (!l) return
-    l.session.patrol = mark
-    this.persist()
-    this.publish(l)
   }
 
   /** Attach the pull request for the dragon's branch (from PrWatcher). Not recorded: it is looked up again on launch. */

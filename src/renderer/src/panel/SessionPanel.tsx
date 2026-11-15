@@ -65,17 +65,6 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
               Wild
             </span>
           ) : null}
-          {session.patrol ? (
-            <a
-              className="badge badge-patrol"
-              href={session.patrol.issueUrl}
-              target="_blank"
-              rel="noreferrer"
-              title={'Summoned by patrol for issue ' + session.patrol.issueKey + (session.patrol.settled ? ' (' + session.patrol.settled + ')' : '')}
-            >
-              ⚑ {session.patrol.issueKey}
-            </a>
-          ) : null}
           {!wild && background ? (
             <span className="badge badge-background" title={'Background session ' + session.backgroundId + '; keeps running when Botalot quits'}>
               Background

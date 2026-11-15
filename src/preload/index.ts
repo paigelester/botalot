@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { DragonApi, Project, Session, SpawnRequest } from '@shared/types'
 import type { Quota } from '@shared/quota'
+import type { RunView } from '@shared/runs'
 
 function subscribe<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
   const handler = (_e: Electron.IpcRendererEvent, ...args: unknown[]) => cb(...(args as T))
@@ -42,6 +43,13 @@ const api: DragonApi = {
   },
   app: {
     setBadge: (count, png) => ipcRenderer.send('app:badge', count, png)
+  },
+  runs: {
+    list: () => ipcRenderer.invoke('runs:list'),
+    carryOn: (id) => ipcRenderer.invoke('runs:carryOn', id),
+    stop: (id) => ipcRenderer.invoke('runs:stop', id),
+    openSession: (runId, sessionId) => ipcRenderer.invoke('runs:openSession', runId, sessionId),
+    onUpdate: (cb) => subscribe<[RunView[]]>('runs:update', cb)
   },
   quota: {
     get: () => ipcRenderer.invoke('quota:get'),

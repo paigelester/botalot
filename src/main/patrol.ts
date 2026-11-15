@@ -1,59 +1,63 @@
-// Patrol: per realm, pick up tickets labelled factory:ready + factory:agent-owned and summon a background dragon
-// for each, running the implement-ticket skill; then settle the ticket by its label once the dragon opens a pull
-// request or dies.
-// Everything outside (trackers, dragons, git hosts) comes in through PatrolDeps, so this file is
+// Patrol: per realm, pick up tickets labelled factory:ready + factory:agent-owned and start a factory run of the
+// implement workflow for each. The run's driver (the `factory` command) does the work and moves the ticket's
+// labels itself; patrol only chooses what to start, and tells a human when a run could not start or fell over.
+// Everything outside (trackers, runs, the driver) comes in through PatrolDeps, so this file is
 // testable with fakes: it imports only shared code, with explicit .ts extensions for Node's test runner.
-import type { Issue, PatrolMark, Project, PullRequestInfo, Session, SpawnRequest } from '../shared/types.ts'
-import { issueBranch, patrolPrompt } from '../shared/issues.ts'
-import { DEFAULT_PATROL_ALLOW } from '../shared/patrol.ts'
+import type { Issue, Project } from '../shared/types.ts'
+import { isOpenRun, samePath, type RunView } from '../shared/runs.ts'
 
 /**
- * The factory labels patrol reads and writes (the factory-labels skill defines them all). The same names on GitHub
- * A ticket is patrol's when it carries both `ready` and `agent`; `working` is the lock while a dragon holds it.
+ * The factory labels patrol reads and writes (the factory-labels skill defines them all). A ticket is patrol's
+ * when it carries both `ready` and `agent`. The driver moves it on from `ready` when a run claims it.
  */
 export const LABEL = {
   ready: 'factory:ready',
   agent: 'factory:agent-owned',
-  working: 'factory:in-progress',
-  review: 'factory:in-review',
-  blocked: 'factory:agent-blocked'
+  needsYou: 'factory:needs-you'
 } as const
 
-/** A dragon may die on a ticket this many times before patrol flags it factory:agent-blocked for a human. */
+/** A run may fail to start for a ticket this many times before patrol hands the ticket to a human. */
 export const MAX_ATTEMPTS = 2
 
 /** What patrol needs from a realm's issue tracker. Implemented for GitHub in patrolTrackers.ts. */
 export interface PatrolTracker {
-  /** The oldest open issue labelled both factory:ready and factory:agent-owned, or null when there is none. */
-  oldestReady(): Promise<Issue | null>
-  /** The issue's current labels, read fresh: the label is the lock between patrols. */
-  labels(key: string): Promise<string[]>
+  /** Open issues labelled both factory:ready and factory:agent-owned, oldest first. */
+  ready(): Promise<Issue[]>
   relabel(key: string, remove: string[], add: string[]): Promise<void>
   comment(key: string, text: string): Promise<void>
-  /** Create the patrol labels where the tracker needs them created first. Called once per realm per run. */
+  /** Create the labels patrol writes where the tracker needs them created first. Called once per realm per app run. */
   ensureLabels(): Promise<void>
 }
 
-/** How often a dragon has died on each issue, kept across restarts. Keyed by realm and issue. */
-export interface AttemptStore {
-  get(key: string): number
-  set(key: string, n: number): void
+/** What patrol remembers across restarts. */
+export interface PatrolMemory {
+  /** How often a run has failed to start for a ticket. Keyed by realm and issue. */
+  attempts(key: string): number
+  setAttempts(key: string, n: number): void
+  /** Whether patrol has already told a human about a run that fell over. */
+  settled(runId: string): boolean
+  settle(runId: string): void
 }
 
 export interface PatrolDeps {
   projects(): Project[]
-  sessions(): Session[]
+  /** Every factory run the driver knows of, any realm. */
+  runs(): RunView[]
   trackerFor(p: Project): PatrolTracker | null
-  pullRequest(repo: string, branch: string): Promise<PullRequestInfo | null>
-  summon(req: SpawnRequest, p: Project): Promise<Session>
-  mark(sessionId: string, mark: PatrolMark): void
-  attempts: AttemptStore
+  /**
+   * Make the ticket's holding and start a run there. Resolves once the driver has taken the run as far as it
+   * can (done, or resting on a human); rejects with the reason when no run could be started at all.
+   */
+  start(p: Project, issue: Issue): Promise<void>
+  memory: PatrolMemory
   log(message: string): void
 }
 
 export class Patrol {
   private running = false
   private labelled = new Set<string>()
+  /** Tickets whose driver patrol has started and not yet seen exit, as `realm:issue`. */
+  private starting = new Set<string>()
   private deps: PatrolDeps
 
   constructor(deps: PatrolDeps) {
@@ -85,63 +89,59 @@ export class Patrol {
       await tracker.ensureLabels()
       this.labelled.add(p.id)
     }
+    const runs = this.deps.runs().filter((r) => samePath(r.mainRepo, p.path) && r.owner !== 'human-owned')
 
-    // First settle what earlier rounds started: a pull request means done, a fallen dragon means retry or a human.
-    for (const s of this.deps.sessions()) {
-      if (s.projectId !== p.id || !s.patrol || s.patrol.settled) continue
-      const pr = s.branch ? await this.deps.pullRequest(p.path, s.branch) : null
-      if (pr) {
-        // The implement-ticket skill moves the ticket itself; this makes sure it lands even if the dragon didn't.
-        await tracker.relabel(s.patrol.issueKey, [LABEL.working], [LABEL.review])
-        await tracker.comment(s.patrol.issueKey, `Botalot patrol: ${s.name} opened ${pr.url}`)
-        this.deps.mark(s.id, { ...s.patrol, settled: 'done' })
-      } else if (s.state === 'dead') {
-        const settled = await this.giveBack(p, tracker, s.patrol.issueKey, `${s.name} fell before opening a pull request${s.attention ? ` (${s.attention})` : ''}.`)
-        this.deps.mark(s.id, { ...s.patrol, settled })
-      }
+    // A run that stopped on a problem, or whose driver died, sits there until someone looks. Say so on its ticket, once.
+    for (const run of runs) {
+      const fell = run.status === 'stopped' || (run.status === 'running' && !run.alive)
+      if (!fell || this.deps.memory.settled(run.id) || this.starting.has(`${p.id}:${run.ticket}`)) continue
+      this.deps.memory.settle(run.id)
+      const why = run.status === 'stopped' ? `stopped${run.waitReason ? `: ${run.waitReason}` : ''}` : `lost its driver at the "${run.currentStep ?? 'first'}" step`
+      // It loses factory:ready too (a run that stopped before claiming still has it), or patrol would start it again.
+      await tracker.relabel(String(run.ticket), [LABEL.ready], [LABEL.needsYou])
+      await tracker.comment(String(run.ticket), `Botalot patrol: factory run \`${run.id}\` ${why}. Carry it on from Botalot's Runs panel, or with \`factory next ${run.id}\`.`)
+      this.deps.log(`patrol ${p.name}: run ${run.id} fell; flagged #${run.ticket}`)
     }
 
-    const alive = this.deps.sessions().filter((s) => s.projectId === p.id && s.patrol && !s.patrol.settled && s.state !== 'dead').length
-    if (alive >= Math.max(1, p.patrol?.max ?? 1)) return
+    // Runs that are going count against the realm's limit; runs resting on a human don't hold a place.
+    const going = new Set(runs.filter((r) => r.status === 'running' && r.alive).map((r) => `${p.id}:${r.ticket}`))
+    for (const key of this.starting) if (key.startsWith(`${p.id}:`)) going.add(key)
+    let room = Math.max(1, p.patrol?.max ?? 1) - going.size
+    if (room <= 0) return
 
-    const issue = await tracker.oldestReady()
-    if (!issue) return
-    // Re-read the labels just before taking it: another Botalot may have got there first.
-    const labels = await tracker.labels(issue.key)
-    if (!labels.includes(LABEL.ready) || !labels.includes(LABEL.agent) || labels.includes(LABEL.working)) return
-    await tracker.relabel(issue.key, [LABEL.ready], [LABEL.working])
-
-    const kind = p.tracker?.kind ?? 'none'
-    let dragon: Session
-    try {
-      dragon = await this.deps.summon(
-        { projectId: p.id, agent: 'claude', target: { kind: 'new', branch: issueBranch(issue) }, prompt: patrolPrompt(issue, kind), background: true, allow: p.patrol?.allow ?? DEFAULT_PATROL_ALLOW },
-        p
-      )
-    } catch (err) {
-      await this.giveBack(p, tracker, issue.key, `Botalot could not summon a dragon: ${(err as Error).message}`)
-      return
+    // A ticket with an open run is never started twice: its run is the place to carry on from.
+    const taken = new Set(runs.filter(isOpenRun).map((r) => String(r.ticket)))
+    for (const issue of await tracker.ready()) {
+      if (room <= 0) break
+      const key = `${p.id}:${issue.key}`
+      if (taken.has(issue.key) || this.starting.has(key)) continue
+      room--
+      this.starting.add(key)
+      this.deps.log(`patrol ${p.name}: starting a run for #${issue.key}`)
+      void this.deps
+        .start(p, issue)
+        .then(
+          () => this.deps.memory.setAttempts(key, 0),
+          (err: Error) => this.couldNotStart(p, tracker, issue, err.message)
+        )
+        .catch((err: Error) => this.deps.log(`patrol ${p.name}: ${err.message}`))
+        .finally(() => this.starting.delete(key))
     }
-    this.deps.mark(dragon.id, { issueKey: issue.key, issueUrl: issue.url })
-    this.deps.log(`patrol ${p.name}: ${dragon.name} took ${issue.key}`)
   }
 
   /**
-   * An attempt failed: hand the ticket back to patrol, or flag it factory:agent-blocked once it has failed
-   * MAX_ATTEMPTS times. A blocked ticket keeps factory:in-progress, so patrol leaves it alone until a person
-   * clears the flag and labels it factory:ready again.
+   * No run could be started for a ticket (the realm's contract doesn't pass, the driver is missing, the holding
+   * could not be made). The ticket stays ready for another try, or after MAX_ATTEMPTS is handed to a human:
+   * it loses factory:ready, so patrol leaves it alone until a person fixes the cause and labels it ready again.
    */
-  private async giveBack(p: Project, tracker: PatrolTracker, key: string, why: string): Promise<'retried' | 'human'> {
-    const id = `${p.id}:${key}`
-    const n = this.deps.attempts.get(id) + 1
-    this.deps.attempts.set(id, n)
-    if (n >= MAX_ATTEMPTS) {
-      await tracker.relabel(key, [], [LABEL.blocked])
-      await tracker.comment(key, `Botalot patrol: ${why} That was attempt ${n}, so it needs a person (${LABEL.blocked}). Clear the flag and label it ${LABEL.ready} to try again.`)
-      return 'human'
-    }
-    await tracker.relabel(key, [LABEL.working], [LABEL.ready])
-    await tracker.comment(key, `Botalot patrol: ${why} Putting it back as ${LABEL.ready} for one more try.`)
-    return 'retried'
+  private async couldNotStart(p: Project, tracker: PatrolTracker, issue: Issue, why: string): Promise<void> {
+    const key = `${p.id}:${issue.key}`
+    const n = this.deps.memory.attempts(key) + 1
+    this.deps.memory.setAttempts(key, n)
+    this.deps.log(`patrol ${p.name}: could not start a run for #${issue.key} (attempt ${n}): ${why.split('\n')[0]}`)
+    if (n < MAX_ATTEMPTS) return
+    this.deps.memory.setAttempts(key, 0)
+    await tracker.relabel(issue.key, [LABEL.ready], [LABEL.needsYou])
+    await tracker.comment(issue.key, `Botalot patrol could not start a factory run for this ticket (${n} attempts):\n\n${why}\n\nFix the cause, then label it ${LABEL.ready} again.`)
   }
 }

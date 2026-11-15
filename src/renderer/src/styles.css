@@ -703,6 +703,87 @@ button.pill:not(.pill-alert) {
   font-size: 12px;
 }
 
+/* Factory runs: the waiting panel's frame, wider, with a table of steps per run */
+.runs-panel {
+  width: min(560px, calc(100% - 28px));
+}
+.run-row.run-needs-you {
+  box-shadow: inset 3px 0 0 var(--waiting);
+}
+.run-row.run-done,
+.run-row.run-stopped {
+  opacity: 0.8;
+}
+.run-toggle {
+  padding: 0 4px;
+}
+.run-status {
+  color: var(--working);
+  font-size: 12px;
+}
+.run-needs-you .run-status {
+  color: var(--waiting);
+}
+.run-done .run-status {
+  color: var(--idle);
+}
+.run-stopped .run-status {
+  color: var(--dead);
+}
+.run-detail {
+  margin: 0;
+  padding: 6px 8px;
+  max-height: 160px;
+  overflow: auto;
+  background: var(--panel-2);
+  border-radius: 4px;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.run-steps {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.run-steps td {
+  padding: 2px 6px 2px 0;
+  vertical-align: baseline;
+}
+.run-mark {
+  width: 18px;
+  text-align: center;
+}
+.run-num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+.run-sessions {
+  text-align: right;
+  white-space: nowrap;
+}
+.run-step-failed .run-step-name,
+.run-step-needs-you .run-step-name,
+.run-check-failed {
+  color: #ff9a80;
+}
+.run-step-skipped,
+.run-step-stopped {
+  color: var(--dead);
+}
+.run-step-more td {
+  padding-top: 0;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.run-link {
+  color: var(--gold);
+  font-size: 12px;
+}
+
 /* Patrol settings under a realm in the Realms dialog */
 .realm-patrol {
   display: flex;
@@ -720,24 +801,4 @@ button.pill:not(.pill-alert) {
 .realm-patrol input[type='number'] {
   width: 48px;
   margin: 0 6px;
-}
-.badge-patrol {
-  color: #ffb27a;
-  border-style: dashed;
-  text-decoration: none;
-}
-.realm-patrol-allow {
-  flex-basis: 100%;
-  font-size: 11px;
-  color: var(--ink-dim);
-}
-.realm-patrol-allow textarea {
-  display: block;
-  width: 100%;
-  margin: 4px 0;
-  font-family: 'Cascadia Mono', Consolas, monospace;
-  font-size: 12px;
-}
-.realm-patrol-allow > button {
-  align-self: flex-start;
 }

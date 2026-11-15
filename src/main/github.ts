@@ -109,20 +109,12 @@ function gh(args: string[], cwd: string): Promise<string> {
   )
 }
 
-/** The oldest open issue carrying `label`, or null. */
-/** The oldest open issue carrying every one of `labels` (gh ANDs repeated --label flags). */
-export async function githubOldestWithLabels(cwd: string, labels: string[]): Promise<Issue | null> {
+/** Open issues carrying every one of `labels` (gh ANDs repeated --label flags), oldest first. */
+export async function githubWithLabels(cwd: string, labels: string[]): Promise<Issue[]> {
   const out = await gh(['issue', 'list', '--state', 'open', ...labels.flatMap((l) => ['--label', l]), '--limit', '100', '--json', 'number,title,body,labels,url,createdAt'], cwd)
   const raw = JSON.parse(out) as { number: number; title: string; body: string; labels: { name: string }[]; url: string; createdAt: string }[]
   raw.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-  const i = raw[0]
-  if (!i) return null
-  return { key: String(i.number), title: i.title, body: i.body ?? '', labels: i.labels.map((l) => l.name), assignees: [], updatedAt: i.createdAt, url: i.url }
-}
-
-export async function githubLabels(cwd: string, key: string): Promise<string[]> {
-  const out = await gh(['issue', 'view', key, '--json', 'labels'], cwd)
-  return (JSON.parse(out) as { labels: { name: string }[] }).labels.map((l) => l.name)
+  return raw.map((i) => ({ key: String(i.number), title: i.title, body: i.body ?? '', labels: i.labels.map((l) => l.name), assignees: [], updatedAt: i.createdAt, url: i.url }))
 }
 
 export async function githubRelabel(cwd: string, key: string, remove: string[], add: string[]): Promise<void> {

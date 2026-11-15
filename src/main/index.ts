@@ -11,9 +11,12 @@ import { BackgroundWatcher } from './background'
 import { Herald } from './herald'
 import { PrWatcher } from './prWatcher'
 import { Patrol } from './patrol'
-import { fileAttemptStore, patrolTrackerFor } from './patrolTrackers'
-import { listWorktrees, remoteDefaultBranch } from './git'
-import { listGitHubIssues, pullRequestFor } from './github'
+import { filePatrolMemory, patrolTrackerFor } from './patrolTrackers'
+import { addWorktree, listWorktrees, remoteDefaultBranch } from './git'
+import { RunsWatcher, continueRun, shareQuota, startRun, stopRun } from './runs'
+import { issueBranch } from '@shared/issues'
+import { samePath } from '@shared/runs'
+import { listGitHubIssues } from './github'
 
 // Demo mode must never touch the real config. Unless a user-data-dir was given explicitly,
 // move it to a throwaway folder before the app reads anything.
@@ -31,6 +34,7 @@ let projects: ProjectStore
 const hooks = new HookServer()
 const registry = new RegistryWatcher()
 const background = new BackgroundWatcher()
+const runs = new RunsWatcher()
 let prs: PrWatcher | null = null
 let patrolTimer: NodeJS.Timeout | null = null
 /** The latest quota reading from any dragon's status line; null until one arrives. */
@@ -119,6 +123,31 @@ function registerIpc(): void {
   ipcMain.handle('sessions:detach', (_e, id: string) => sessions.detach(id))
 
   ipcMain.handle('names:random', () => sessions.randomName())
+  ipcMain.handle('runs:list', () => runs.list())
+  ipcMain.handle('runs:carryOn', (_e, id: string) => {
+    const run = runs.get(id)
+    if (!run) throw new Error('No such run')
+    continueRun(run, (code, output) => {
+      if (code === 1) console.log('[runs] could not carry on', id, output)
+      runs.poll()
+    })
+    setTimeout(() => runs.poll(), 1500)
+  })
+  ipcMain.handle('runs:stop', (_e, id: string) => {
+    const run = runs.get(id)
+    if (!run) throw new Error('No such run')
+    stopRun(run, () => runs.poll())
+  })
+  ipcMain.handle('runs:openSession', async (_e, runId: string, sessionId: string) => {
+    const run = runs.get(runId)
+    if (!run) throw new Error('No such run')
+    const p = projects.all().find((x) => samePath(x.path, run.mainRepo))
+    if (!p) throw new Error(run.repoName + ' is not a realm. Add its folder in Realms, then open the session.')
+    const target = samePath(run.cwd, p.path) ? ({ kind: 'main' } as const) : ({ kind: 'existing', path: run.cwd } as const)
+    const s = await sessions.spawn({ projectId: p.id, target, resume: sessionId }, p)
+    send('session:focus', s.id)
+    return s
+  })
   ipcMain.handle('quota:get', () => quota)
   ipcMain.on('app:badge', (_e, count: number, png: string | null) => herald.setBadge(count, png))
 }
@@ -142,6 +171,7 @@ app.whenReady().then(async () => {
     if (!q) return
     quota = q
     send('quota:update', q)
+    shareQuota(q)
   })
   registry.on('registry', (entries) => sessions.applyRegistry(entries))
   registry.start()
@@ -165,17 +195,34 @@ app.whenReady().then(async () => {
   // The demo's realms are fictional: no GitHub to ask.
   if (!process.env.DRAGON_DEMO && !process.env.DRAGON_DEMO_PLAN) prs.start()
 
-  // Patrol: every couple of minutes, and soon after a realm's patrol is switched on. The first round waits
-  // for the background poll to bring restored dragons back, so a live patrol dragon isn't taken for dead.
-  if (!process.env.DRAGON_DEMO && !process.env.DRAGON_DEMO_PLAN) {
+  // Factory runs. The demo kingdom is fictional, so it shows runs only from a runs folder made for it (FACTORY_HOME).
+  const demo = !!process.env.DRAGON_DEMO || !!process.env.DRAGON_DEMO_PLAN
+  if (!demo || process.env.FACTORY_HOME) {
+    runs.on('runs', (list) => send('runs:update', list))
+    runs.start()
+  }
+
+  // Patrol goes every couple of minutes, and soon after a realm's patrol is switched on.
+  if (!demo) {
     const patrol = new Patrol({
       projects: () => projects.all(),
-      sessions: () => sessions.list(),
+      runs: () => runs.list(),
       trackerFor: patrolTrackerFor,
-      pullRequest: pullRequestFor,
-      summon: (req, p) => sessions.spawn(req, p),
-      mark: (id, mark) => sessions.setPatrol(id, mark),
-      attempts: fileAttemptStore(),
+      start: async (p, issue) => {
+        const holding = await addWorktree(p.path, issueBranch(issue), p.worktreeLayout)
+        const since = Date.now()
+        await new Promise<void>((resolve, reject) => {
+          startRun(holding.path, 'implement', Number(issue.key), (code, output) => {
+            runs.poll()
+            // Exit 1 with a run on record is a run that stopped, which patrol reads off the run. With none, nothing started.
+            const started = runs.list().some((r) => r.ticket === Number(issue.key) && samePath(r.mainRepo, p.path) && r.startedAt >= since - 5000)
+            if (code === 1 && !started) reject(new Error(output || 'The factory driver exited without starting a run.'))
+            else resolve()
+          })
+          setTimeout(() => runs.poll(), 2000)
+        })
+      },
+      memory: filePatrolMemory(),
       log: (m) => console.log('[patrol]', m)
     })
     const round = () => void patrol.tick()
@@ -274,6 +321,7 @@ app.on('before-quit', () => {
   sessions?.killAll()
   registry.stop()
   background.stop()
+  runs.stop()
   prs?.stop()
   if (patrolTimer) clearInterval(patrolTimer)
   hooks.stop()
