@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/paigelester/skills/master/schemas/contract.schema.json",
+  "factory": "1.0.0",
+  "stacks": [
+    "typescript"
+  ],
+  "commands": {
+    "setup": [
+      "npm install"
+    ],
+    "verify": [
+      "npm run verify"
+    ],
+    "run": "npm run dev"
+  },
+  "workflows": [
+    "implement"
+  ],
+  "reviews": [
+    {
+      "paths": [
+        "**"
+      ],
+      "run": [
+        "code"
+      ]
+    }
+  ]
+}

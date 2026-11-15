@@ -51,9 +51,17 @@ When one commit spans several types, use the type of its main purpose: packaging
 
 ## Vendored skills
 
-Skills in `.agents/skills/` (linked into `.claude/skills/`) come from `mattpocock/skills` and `paigelester/skills` (the `factory` family) via the `skills` CLI, pinned in `package.json` and recorded in `skills-lock.json`. Don't edit them; changes are overwritten by updates. Change a factory skill in `paigelester/skills`, then update here.
+Skills in `.agents/skills/` (linked into `.claude/skills/`) come from `mattpocock/skills` via the `skills` CLI, pinned in `package.json` and recorded in `skills-lock.json`. Don't edit them; changes are overwritten by updates.
 
 - Update: `npm run skills:update`
+
+## Factory
+
+This repo runs the software factory from `paigelester/skills`, installed as the `factory` Claude Code plugin (turned on in `.claude/settings.json`), not vendored. Its contract with the factory is `.factory/contract.json`: the stacks whose knowledge loads, the checks every change must pass, and which reviews a change gets.
+
+- To implement a ticket, start its run with `factory start implement <ticket>` rather than doing the steps by hand. `factory next` carries a waiting run on.
+- The contract's `commands.verify` is `npm run verify`, so a check added there is picked up by factory runs too.
+- Change a factory skill, workflow or the driver in `paigelester/skills`, never here. Botalot only starts the driver and reads its run logs (`src/main/runs.ts`, `src/shared/runs.ts`).
 
 ## Agent skills
 

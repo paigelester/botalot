@@ -13,10 +13,9 @@
     "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \"src/**/*.test.ts\"",
     "demo": "electron-vite build && node scripts/demo/demo.cjs",
     "skills:update": "skills update --project -y",
-    "factory:setup": "bash .agents/skills/setup-factory/scripts/setup.sh",
     "prepare": "husky",
     "ci:changes": "node scripts/ci/changed-checks.cjs",
-    "commits:check":"commitlint --from origin/main --to HEAD --verbose",
+    "commits:check": "commitlint --from origin/main --to HEAD --verbose",
     "verify": "npm run typecheck && npm test && npm run build"
   },
   "license": "MIT",
