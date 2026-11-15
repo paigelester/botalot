@@ -101,9 +101,10 @@ export async function listJiraIssues(t: JiraTracker, search?: string): Promise<I
 // ------------------------------------------------------------------ patrol
 
 /** The oldest open issue in the realm's query that carries `label`, or null. */
-export async function jiraOldestWithLabel(t: JiraTracker, label: string): Promise<Issue | null> {
-  const base = defaultJql(t).replace(/s+ORDERs+BYs+.*$/i, '')
-  const jql = `(${base}) AND labels = "${escapeJql(label)}" ORDER BY created ASC`
+/** The oldest issue in the realm's JQL carrying every one of `labels`. */
+export async function jiraOldestWithLabels(t: JiraTracker, labels: string[]): Promise<Issue | null> {
+  const base = defaultJql(t).replace(/\s+ORDER\s+BY\s+.*$/i, '')
+  const jql = `(${base})${labels.map((l) => ` AND labels = "${escapeJql(l)}"`).join('')} ORDER BY created ASC`
   const body = JSON.stringify({ jql, maxResults: 1, fields: ['summary', 'description', 'updated', 'labels', 'status'] })
   const res = await call<SearchResponse>(t.site, '/rest/api/2/search/jql', { method: 'POST', body })
   const i = res.issues[0]

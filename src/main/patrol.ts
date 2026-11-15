@@ -1,20 +1,30 @@
-// Patrol: per realm, pick up issues labelled ready-for-agent and summon a background dragon for each,
-// then settle the issue by its label once the dragon opens a pull request or dies.
+// Patrol: per realm, pick up tickets labelled factory:ready + factory:agent-owned and summon a background dragon
+// for each, running the implement-ticket skill; then settle the ticket by its label once the dragon opens a pull
+// request or dies.
 // Everything outside (trackers, dragons, git hosts) comes in through PatrolDeps, so this file is
 // testable with fakes: it imports only shared code, with explicit .ts extensions for Node's test runner.
 import type { Issue, PatrolMark, Project, PullRequestInfo, Session, SpawnRequest } from '../shared/types.ts'
 import { issueBranch, patrolPrompt } from '../shared/issues.ts'
 import { DEFAULT_PATROL_ALLOW } from '../shared/patrol.ts'
 
-/** The label lifecycle of a patrolled issue. The same names on GitHub and Jira. */
-export const LABEL = { ready: 'ready-for-agent', working: 'agent-working', done: 'agent-done', human: 'ready-for-human' } as const
+/**
+ * The factory labels patrol reads and writes (the factory-labels skill defines them all). The same names on GitHub
+ * and Jira. A ticket is patrol's when it carries both `ready` and `agent`; `working` is the lock while a dragon holds it.
+ */
+export const LABEL = {
+  ready: 'factory:ready',
+  agent: 'factory:agent-owned',
+  working: 'factory:in-progress',
+  review: 'factory:in-review',
+  blocked: 'factory:agent-blocked'
+} as const
 
-/** A dragon may die on an issue this many times before the issue goes to a human. */
+/** A dragon may die on a ticket this many times before patrol flags it factory:agent-blocked for a human. */
 export const MAX_ATTEMPTS = 2
 
 /** What patrol needs from a realm's issue tracker. Implemented for GitHub and Jira in patrolTrackers.ts. */
 export interface PatrolTracker {
-  /** The oldest open issue labelled ready-for-agent, or null when there is none. */
+  /** The oldest open issue labelled both factory:ready and factory:agent-owned, or null when there is none. */
   oldestReady(): Promise<Issue | null>
   /** The issue's current labels, read fresh: the label is the lock between patrols. */
   labels(key: string): Promise<string[]>
@@ -81,7 +91,8 @@ export class Patrol {
       if (s.projectId !== p.id || !s.patrol || s.patrol.settled) continue
       const pr = s.branch ? await this.deps.pullRequest(p.path, s.branch) : null
       if (pr) {
-        await tracker.relabel(s.patrol.issueKey, [LABEL.working], [LABEL.done])
+        // The implement-ticket skill moves the ticket itself; this makes sure it lands even if the dragon didn't.
+        await tracker.relabel(s.patrol.issueKey, [LABEL.working], [LABEL.review])
         await tracker.comment(s.patrol.issueKey, `Botalot patrol: ${s.name} opened ${pr.url}`)
         this.deps.mark(s.id, { ...s.patrol, settled: 'done' })
       } else if (s.state === 'dead') {
@@ -97,7 +108,7 @@ export class Patrol {
     if (!issue) return
     // Re-read the labels just before taking it: another Botalot may have got there first.
     const labels = await tracker.labels(issue.key)
-    if (!labels.includes(LABEL.ready) || labels.includes(LABEL.working)) return
+    if (!labels.includes(LABEL.ready) || !labels.includes(LABEL.agent) || labels.includes(LABEL.working)) return
     await tracker.relabel(issue.key, [LABEL.ready], [LABEL.working])
 
     const kind = p.tracker?.kind ?? 'none'
@@ -115,14 +126,18 @@ export class Patrol {
     this.deps.log(`patrol ${p.name}: ${dragon.name} took ${issue.key}`)
   }
 
-  /** An attempt failed: hand the issue back to patrol, or to a human once it has failed MAX_ATTEMPTS times. */
+  /**
+   * An attempt failed: hand the ticket back to patrol, or flag it factory:agent-blocked once it has failed
+   * MAX_ATTEMPTS times. A blocked ticket keeps factory:in-progress, so patrol leaves it alone until a person
+   * clears the flag and labels it factory:ready again.
+   */
   private async giveBack(p: Project, tracker: PatrolTracker, key: string, why: string): Promise<'retried' | 'human'> {
     const id = `${p.id}:${key}`
     const n = this.deps.attempts.get(id) + 1
     this.deps.attempts.set(id, n)
     if (n >= MAX_ATTEMPTS) {
-      await tracker.relabel(key, [LABEL.working], [LABEL.human])
-      await tracker.comment(key, `Botalot patrol: ${why} That was attempt ${n}, so this goes to a human (${LABEL.human}).`)
+      await tracker.relabel(key, [], [LABEL.blocked])
+      await tracker.comment(key, `Botalot patrol: ${why} That was attempt ${n}, so it needs a person (${LABEL.blocked}). Clear the flag and label it ${LABEL.ready} to try again.`)
       return 'human'
     }
     await tracker.relabel(key, [LABEL.working], [LABEL.ready])
