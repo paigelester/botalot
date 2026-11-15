@@ -13,6 +13,7 @@
     "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \"src/**/*.test.ts\"",
     "demo": "electron-vite build && node scripts/demo/demo.cjs",
     "skills:update": "skills update --project -y",
+    "factory:labels": "bash .agents/skills/factory-labels/scripts/create-labels.sh",
     "prepare": "husky",
     "ci:changes": "node scripts/ci/changed-checks.cjs",
     "commits:check":"commitlint --from origin/main --to HEAD --verbose",
