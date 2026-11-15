@@ -57,6 +57,7 @@ The driver holds the agent to its word: every item needs an answer, and `fixed` 
 Not every workflow changes code. A workflow's `kind` is `work` or `planning`, and each can name the labels that make it due:
 
 ```
+factory:refined                   on your board, to pick:  botalot pick 12   (or the oldest:  botalot pick)
 factory:selected, no owner        route is due: an agent judges risk and solvability, the driver picks the owner
                                   by rule (agent when risk is low or medium and solvability is yes) and posts the plan
 selected + owner                  on your board, to approve:  botalot approve 12   (selected becomes ready)
@@ -135,6 +136,7 @@ botalot labels [--fix] [--prune]      Compare the repo's labels with the factory
 botalot knowledge [--index|--write]   Print the knowledge this repo's contract loads; or its index; or write the index
 botalot skill <name> [--ticket <n>]   Try one step skill by itself, to test it. Add --dry to only print its prompt
 botalot board [--json]                Show the tickets waiting on you
+botalot pick [ticket]                 Pick a refined ticket to work on: refined becomes selected
 botalot approve <ticket>              Approve a routed ticket: selected becomes ready
 botalot due [--json]                  Show the runs that should be started
 botalot list                          Show the workflows, reviews and stacks botalot has

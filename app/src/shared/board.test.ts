@@ -14,6 +14,7 @@ test('a board is read from the CLI, dropping anything malformed', () => {
   assert.deepEqual(board.needsYou, [{ number: 3, title: 'Stuck', url: 'u3' }])
   assert.deepEqual(board.yoursToBuild, [])
   assert.deepEqual(board.inReview, [{ number: 4, title: 'PR', url: 'u4' }])
+  assert.deepEqual(board.refined, [], 'a board from an older CLI has no refined list')
   assert.equal(boardCount(board), 1)
   assert.equal(boardCount(undefined), 0)
 })

@@ -6,7 +6,7 @@ import { board, due } from "../cli/lib/board.mjs";
 import { readContract } from "../cli/lib/contract.mjs";
 import { startRun } from "../cli/lib/driver.mjs";
 import { summary } from "../cli/lib/report.mjs";
-import { approve } from "../cli/lib/tickets.mjs";
+import { approve, pick } from "../cli/lib/tickets.mjs";
 import { makeWorld, quiet } from "./helpers.mjs";
 
 const both = { workflows: ["implement", "route"] };
@@ -64,6 +64,21 @@ test("approving moves a routed ticket to ready, and refuses one that has not bee
   assert.equal(approve(world.repo, 12), "#12 is already ready.");
 });
 
+test("picking moves a refined ticket to selected: the one named, or the oldest that isn't flagged", () => {
+  const world = makeWorld({ labels: ["factory:refined", "factory:blocked"] });
+  addIssue(world, 30, ["factory:refined"]);
+  addIssue(world, 31, ["factory:refined"]);
+  addIssue(world, 32, ["factory:new"]);
+
+  assert.equal(pick(world.repo), "#30 is selected: Ticket 30");
+  assert.deepEqual(world.gh().issues[30].labels, ["factory:selected"]);
+  assert.equal(pick(world.repo, 12), "#12 is selected: Add the feature!", "naming a ticket overrules the flag");
+  assert.equal(pick(world.repo, 12), "#12 is already selected.");
+  assert.throws(() => pick(world.repo, 32), /not at factory:refined/);
+  assert.equal(pick(world.repo), "#31 is selected: Ticket 31");
+  assert.throws(() => pick(world.repo), /No refined ticket is waiting/);
+});
+
 test("the board groups the tickets waiting on the human, and carries the plan to approve", async () => {
   const world = makeWorld({ labels: ["factory:selected"], contract: both, agent: { route: [{ output: judged("high", "yes") }] } });
   await route(world);
@@ -78,6 +93,7 @@ test("the board groups the tickets waiting on the human, and carries the plan to
   assert.deepEqual(b.yoursToBuild.map((t) => t.number), [20]);
   assert.deepEqual(b.needsYou.map((t) => t.number), [21]);
   assert.deepEqual(b.inReview.map((t) => t.number), [22]);
+  assert.deepEqual(b.refined.map((t) => t.number), [23]);
 });
 
 test("what is due follows each workflow's trigger, oldest first, skipping flagged tickets and tickets with a run", async () => {

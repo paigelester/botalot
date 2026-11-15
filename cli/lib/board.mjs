@@ -14,6 +14,7 @@ const brief = (t) => ({ number: t.number, title: t.title, url: t.url });
  *   needsYou       a run asked a question or got blocked
  *   yoursToBuild   ready and human-owned
  *   inReview       a pull request is open
+ *   refined        written up and waiting to be picked (`botalot pick`)
  */
 export function board(repo) {
   const tickets = listTickets(repo);
@@ -22,6 +23,7 @@ export function board(repo) {
     needsYou: tickets.filter((t) => has(t, "factory:needs-you")).map(brief),
     yoursToBuild: tickets.filter((t) => has(t, "factory:ready") && has(t, "factory:human-owned")).map(brief),
     inReview: tickets.filter((t) => has(t, "factory:in-review")).map(brief),
+    refined: tickets.filter((t) => has(t, "factory:refined")).map(brief),
   };
 }
 

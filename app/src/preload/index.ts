@@ -44,6 +44,7 @@ const api: DragonApi = {
     all: () => ipcRenderer.invoke('board:all'),
     refresh: (projectId) => ipcRenderer.invoke('board:refresh', projectId),
     approve: (projectId, ticket) => ipcRenderer.invoke('board:approve', projectId, ticket),
+    pick: (projectId, ticket) => ipcRenderer.invoke('board:pick', projectId, ticket),
     onUpdate: (cb) => subscribe<[Record<string, Board>]>('board:update', cb)
   },
   names: {

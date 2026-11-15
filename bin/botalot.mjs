@@ -14,7 +14,7 @@ import { topLevel, worktreeTree } from "../cli/lib/git.mjs";
 import { OPEN_STATUSES, allStates, isAlive, loadState } from "../cli/lib/runs.mjs";
 import { summary } from "../cli/lib/report.mjs";
 import { indexLine, setupRepo } from "../cli/lib/setup.mjs";
-import { approve, syncLabels } from "../cli/lib/tickets.mjs";
+import { approve, pick, syncLabels } from "../cli/lib/tickets.mjs";
 import { board, due } from "../cli/lib/board.mjs";
 
 const HELP = `botalot ${BRAIN_VERSION}
@@ -32,6 +32,7 @@ const HELP = `botalot ${BRAIN_VERSION}
   botalot skill <name> [--ticket <n>]   Try one step skill by itself, to test it. Nothing is committed or labelled
                 [--dry]                 Print the prompt it would get, without starting an agent
   botalot board [--json]                Show the tickets waiting on you: to approve, needing you, yours to build, in review
+  botalot pick [ticket]                 Pick a refined ticket to work on: move it to selected (the oldest, with no number)
   botalot approve <ticket>              Approve a routed ticket: move it from selected to ready
   botalot due [--json]                  Show the runs that should be started, by each workflow's trigger
   botalot list                          Show the workflows, reviews and stacks the brain has
@@ -166,11 +167,16 @@ const commands = {
   async board() {
     const b = board(topLevel(process.cwd()));
     if (flags.has("--json")) return console.log(JSON.stringify(b, null, 2));
-    const groups = [["To approve", b.toApprove], ["Needs you", b.needsYou], ["Yours to build", b.yoursToBuild], ["In review", b.inReview]];
+    const groups = [["To approve", b.toApprove], ["Needs you", b.needsYou], ["Yours to build", b.yoursToBuild], ["In review", b.inReview], ["Refined", b.refined]];
     for (const [title, items] of groups) {
       console.log(`${title} (${items.length})`);
       for (const t of items) console.log(`  #${t.number} ${t.title}${t.owner ? `  [${t.owner}]` : ""}`);
     }
+  },
+
+  async pick() {
+    if (rest[0] !== undefined && !/^\d+$/.test(rest[0])) fail("Usage: botalot pick [ticket number]");
+    console.log(pick(topLevel(process.cwd()), rest[0] === undefined ? undefined : Number(rest[0])));
   },
 
   async approve() {

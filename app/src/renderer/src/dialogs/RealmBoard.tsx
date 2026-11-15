@@ -57,7 +57,7 @@ export function RealmBoard({ project, board, onClose, onSummon }: Props) {
     }
   }
 
-  const empty = board && board.toApprove.length + board.needsYou.length + board.yoursToBuild.length + board.inReview.length === 0
+  const empty = board && board.toApprove.length + board.needsYou.length + board.yoursToBuild.length + board.inReview.length + board.refined.length === 0
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -98,6 +98,15 @@ export function RealmBoard({ project, board, onClose, onSummon }: Props) {
             </Group>
             <Group title="In review" hint="A pull request is open." items={board.inReview}>
               {(t) => <Row key={t.number} ticket={t} />}
+            </Group>
+            <Group title="Refined" hint="Written up and waiting. Picking one selects it, and the goblin routes it." items={board.refined}>
+              {(t) => (
+                <Row key={t.number} ticket={t}>
+                  <button className="small" disabled={busy === t.number} onClick={() => void act(t.number, () => api.board.pick(project.id, t.number))} title="Runs `botalot pick`: the ticket moves from refined to selected">
+                    {busy === t.number ? 'Picking…' : 'Pick'}
+                  </button>
+                </Row>
+              )}
             </Group>
           </>
         )}

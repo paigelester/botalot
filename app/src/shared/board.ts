@@ -21,6 +21,8 @@ export interface Board {
   needsYou: BoardTicket[]
   yoursToBuild: BoardTicket[]
   inReview: BoardTicket[]
+  /** Written up and waiting for you to pick one to work on. */
+  refined: BoardTicket[]
 }
 
 /** A run that should be started: a ticket whose labels match a workflow's trigger. */
@@ -54,7 +56,7 @@ export function parseBoard(json: unknown): Board | null {
     if (!t || (r.owner !== 'agent-owned' && r.owner !== 'human-owned')) continue
     toApprove.push({ ...t, owner: r.owner, plan: typeof r.plan === 'string' ? r.plan : null })
   }
-  return { toApprove, needsYou: tickets(b.needsYou), yoursToBuild: tickets(b.yoursToBuild), inReview: tickets(b.inReview) }
+  return { toApprove, needsYou: tickets(b.needsYou), yoursToBuild: tickets(b.yoursToBuild), inReview: tickets(b.inReview), refined: tickets(b.refined) }
 }
 
 /** Read `botalot due --json`. Entries that aren't well formed are dropped. */

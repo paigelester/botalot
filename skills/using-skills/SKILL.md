@@ -69,6 +69,7 @@ A workflow that has been built is a file in botalot's `workflows/` folder, run b
 botalot start implement <ticket>    claim → build → verify → review → squash → PR → hand-off
 botalot start route <ticket>        judge risk and solvability, pick the owner, post the plan
 botalot start fix-pr <ticket>       fix and answer the PR's failed checks, review threads and comments
+botalot pick [ticket]               the human's pick of what to work on next: refined → selected
 botalot approve <ticket>            the human's approval of a routed ticket: selected → ready
 botalot board                       the tickets waiting on the human
 botalot next                        carry on a waiting run (after the human's step, or an answer)

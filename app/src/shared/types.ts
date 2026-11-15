@@ -199,6 +199,8 @@ export interface DragonApi {
     refresh(projectId: string): Promise<void>
     /** Approve a routed ticket (`botalot approve`): it moves from selected to ready. */
     approve(projectId: string, ticket: number): Promise<void>
+    /** Pick a refined ticket to work on (`botalot pick`): it moves from refined to selected. */
+    pick(projectId: string, ticket: number): Promise<void>
     onUpdate(cb: (boards: Record<string, Board>) => void): () => void
   }
   names: {

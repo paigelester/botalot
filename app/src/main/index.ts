@@ -173,13 +173,16 @@ function registerIpc(): void {
   })
   ipcMain.handle('board:all', () => boards.all())
   ipcMain.handle('board:refresh', (_e, projectId: string) => boards.poll(projectId))
-  ipcMain.handle('board:approve', async (_e, projectId: string, ticket: number) => {
-    const p = projects.get(projectId)
-    if (!p) throw new Error('Unknown realm')
-    const r = await cli(['approve', String(ticket)], p.path, p.path)
-    if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || 'botalot approve failed')
-    await boards.poll(p.id)
-  })
+  // The human's two moves on a ticket, each a CLI command: pick (refined to selected) and approve (selected to ready).
+  for (const move of ['approve', 'pick'] as const) {
+    ipcMain.handle(`board:${move}`, async (_e, projectId: string, ticket: number) => {
+      const p = projects.get(projectId)
+      if (!p) throw new Error('Unknown realm')
+      const r = await cli([move, String(ticket)], p.path, p.path)
+      if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || `botalot ${move} failed`)
+      await boards.poll(p.id)
+    })
+  }
   ipcMain.handle('runs:carryOn', (_e, id: string) => {
     const run = runs.get(id)
     if (!run) throw new Error('No such run')

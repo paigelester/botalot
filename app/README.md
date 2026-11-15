@@ -81,7 +81,8 @@ Requires Node 20+, git, and `claude` (Claude Code) on PATH. Windows is the prima
   is done. Its result lands on the realm's **board**, which a tap on the castle
   opens: tickets **to approve** (routed, with the plan and who builds it;
   **Approve** runs `botalot approve`), tickets that **need you**, tickets that
-  are **yours to build** (**Start run**), and tickets **in review**. The castle
+  are **yours to build** (**Start run**), tickets **in review**, and **refined** tickets waiting to be picked (**Pick** runs
+  `botalot pick`, which selects the ticket so the goblin routes it). The castle
   shows how many wait for approval, and they count in "awaiting you". Summoning a
   dragon moved from the castle tap to a button on the board; the top bar's
   Summon dragon is unchanged.

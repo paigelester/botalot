@@ -54,6 +54,23 @@ export function approve(repo, number) {
   return `#${number} is ready, ${ticket.owner}.`;
 }
 
+/**
+ * Pick a refined ticket to work on: refined becomes selected, which makes routing due. With no number, the
+ * oldest refined ticket that isn't flagged or blocked.
+ */
+export function pick(repo, number) {
+  if (number === undefined) {
+    const waiting = listTickets(repo).filter((t) => t.labels.includes("factory:refined") && !t.labels.includes("factory:needs-you") && !t.labels.includes("factory:blocked"));
+    if (waiting.length === 0) throw new Error("No refined ticket is waiting to be picked.");
+    number = Math.min(...waiting.map((t) => t.number));
+  }
+  const ticket = readTicket(repo, number);
+  if (ticket.labels.includes("factory:selected")) return `#${number} is already selected.`;
+  if (!ticket.labels.includes("factory:refined")) throw new Error(`#${number} is not at factory:refined, so it is not ready to be picked.`);
+  relabel(repo, number, ["factory:refined"], ["factory:selected"]);
+  return `#${number} is selected: ${ticket.title}`;
+}
+
 export const assignToMe = (repo, number) => call(repo, "issue", "edit", String(number), "--add-assignee", "@me");
 export const comment = (repo, number, body) => call(repo, "issue", "comment", String(number), "--body", body);
 
