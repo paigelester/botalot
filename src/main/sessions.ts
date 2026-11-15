@@ -185,7 +185,6 @@ export class SessionManager extends EventEmitter {
     const def = AGENTS[agent]
     const binary = this.resolveBinary(agent)
     if (!binary) throw new Error(`${def.label} is not installed (no "${def.binary}" on PATH).`)
-    if (req.background && agent !== 'claude') throw new Error('Only Claude Code dragons can run in the background.')
     if (req.background && !req.prompt?.trim()) throw new Error('A background dragon needs a first quest: there is no terminal to type it in.')
 
     let cwd = project.path
@@ -207,8 +206,6 @@ export class SessionManager extends EventEmitter {
     } else {
       branch = await currentBranch(cwd)
     }
-
-    await def.prepare(cwd)
 
     const id = randomUUID()
     const name = req.name?.trim() || this.randomName()
@@ -247,7 +244,7 @@ export class SessionManager extends EventEmitter {
       this.publish(l)
       return { ...session }
     }
-    const args = def.args({ prompt, sessionId: id, name, hookSettingsPath: this.hookSettingsPath })
+    const args = def.args({ prompt, hookSettingsPath: this.hookSettingsPath })
     this.launch(l, binary, args)
     return { ...session }
   }
@@ -264,7 +261,6 @@ export class SessionManager extends EventEmitter {
     const def = AGENTS[s.agent]
     const binary = this.resolveBinary(s.agent)
     if (!binary) throw new Error(`${def.label} is not installed (no "${def.binary}" on PATH).`)
-    await def.prepare(s.cwd)
 
     s.state = 'idle'
     s.stateSince = Date.now()
@@ -275,11 +271,11 @@ export class SessionManager extends EventEmitter {
       this.persist()
     }
     s.resumable = undefined
-    s.attention = s.claudeSessionId || s.agent === 'copilot' ? 'Woken: resuming its earlier session' : 'Woken: continuing the most recent session in this folder'
+    s.attention = s.claudeSessionId ? 'Woken: resuming its earlier session' : 'Woken: continuing the most recent session in this folder'
     l.scrollback = ''
     l.lastHookAt = 0
 
-    const args = def.resumeArgs({ sessionId: s.id, agentSessionId: s.claudeSessionId, name: s.name, hookSettingsPath: this.hookSettingsPath })
+    const args = def.resumeArgs({ agentSessionId: s.claudeSessionId, hookSettingsPath: this.hookSettingsPath })
     this.launch(l, binary, args)
     return { ...s }
   }
@@ -500,11 +496,7 @@ export class SessionManager extends EventEmitter {
     }
   }
 
-  /**
-   * Apply a hook event forwarded by hooks/notify.js. Claude Code sends snake_case payloads;
-   * Copilot CLI sends snake_case for PascalCase-configured events and camelCase for the rest,
-   * so both spellings are read.
-   */
+  /** Apply a hook event forwarded by hooks/notify.js. */
   handleHook(ev: HookEvent): void {
     const p = ev.payload
     // Background dragons post without a dragon id (see hooks/notify.js); find them by the agent's session id.
@@ -521,12 +513,12 @@ export class SessionManager extends EventEmitter {
       l.idleTimer = null
     }
     l.session.lastEvent = event
-    const sid = str('session_id', 'sessionId')
+    const sid = str('session_id')
     if (sid && sid !== l.session.claudeSessionId) {
       l.session.claudeSessionId = sid
       this.persist()
     }
-    const tool = str('tool_name', 'toolName')
+    const tool = str('tool_name')
 
     switch (event) {
       case 'SessionStart':
@@ -537,7 +529,7 @@ export class SessionManager extends EventEmitter {
         this.setState(l, 'working')
         break
       case 'PreToolUse': {
-        if (tool === 'AskUserQuestion' || tool === 'ask_user') this.setState(l, 'waiting', 'Asking you a question')
+        if (tool === 'AskUserQuestion') this.setState(l, 'waiting', 'Asking you a question')
         else this.setState(l, 'working', tool ? `Using ${tool}` : undefined)
         break
       }
@@ -548,7 +540,7 @@ export class SessionManager extends EventEmitter {
         this.setState(l, 'waiting', 'A tool is asking you a question')
         break
       case 'Notification': {
-        const type = str('notification_type', 'notificationType')
+        const type = str('notification_type')
         const msg = str('message')
         if (type === 'permission_prompt' || /permission/i.test(msg)) {
           this.setState(l, 'waiting', msg || 'Needs your permission')
@@ -559,12 +551,6 @@ export class SessionManager extends EventEmitter {
         } else if (msg) {
           l.session.attention = msg
         }
-        break
-      }
-      case 'ErrorOccurred': {
-        const e = p.error as { message?: string } | string | undefined
-        const msg = typeof e === 'string' ? e : (e?.message ?? 'Error')
-        l.session.attention = `Error: ${msg}`
         break
       }
       case 'Stop':
@@ -584,7 +570,7 @@ export class SessionManager extends EventEmitter {
   applyRegistry(entries: RegistryEntry[]): void {
     const claimed = new Set<number>()
     for (const l of this.live.values()) {
-      if (l.session.backgroundId || l.session.state === 'dead' || l.session.state === 'dormant' || l.session.agent !== 'claude' || !l.proc) continue
+      if (l.session.backgroundId || l.session.state === 'dead' || l.session.state === 'dormant' || !l.proc) continue
       let entry: RegistryEntry | undefined
       if (l.session.claudeSessionId) entry = entries.find((e) => e.sessionId === l.session.claudeSessionId)
       if (!entry) {

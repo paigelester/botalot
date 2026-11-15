@@ -4,7 +4,7 @@ import type { PullRequestInfo, SpawnRequest } from '@shared/types'
 import { parseRateLimits, type Quota } from '@shared/quota'
 import { ProjectStore } from './projects'
 import { HookServer, removeHookPortFile, writeHookPortFile } from './hooks'
-import { ensureClaudeBackgroundHooks, ensureClaudeHooks, listAgents } from './agents'
+import { ensureClaudeBackgroundHooks, ensureClaudeHooks } from './agents'
 import { SessionManager } from './sessions'
 import { RegistryWatcher } from './registry'
 import { BackgroundWatcher } from './background'
@@ -14,8 +14,6 @@ import { Patrol } from './patrol'
 import { fileAttemptStore, patrolTrackerFor } from './patrolTrackers'
 import { listWorktrees, remoteDefaultBranch } from './git'
 import { listGitHubIssues, pullRequestFor } from './github'
-import { listJiraIssues, testJira } from './jira'
-import { listJiraSites, removeJiraSite, saveJiraSite } from './secrets'
 
 // Demo mode must never touch the real config. Unless a user-data-dir was given explicitly,
 // move it to a throwaway folder before the app reads anything.
@@ -97,20 +95,8 @@ function registerIpc(): void {
     if (!p) return { tracker: 'none', issues: [], error: 'Unknown realm' }
     const t = p.tracker ?? { kind: 'none' as const }
     if (t.kind === 'github') return listGitHubIssues(p.path, search)
-    if (t.kind === 'jira') return listJiraIssues(t, search)
     return { tracker: 'none', issues: [] }
   })
-
-  ipcMain.handle('jira:sites', () => listJiraSites())
-  ipcMain.handle('jira:saveSite', (_e, site: string, email: string, token: string) => {
-    saveJiraSite(site, email, token)
-    return listJiraSites()
-  })
-  ipcMain.handle('jira:removeSite', (_e, site: string) => {
-    removeJiraSite(site)
-    return listJiraSites()
-  })
-  ipcMain.handle('jira:test', (_e, site: string) => testJira(site))
   ipcMain.handle('projects:remoteBase', async (_e, id: string) => {
     const p = projects.get(id)
     return p && p.isGit ? remoteDefaultBranch(p.path) : null
@@ -133,7 +119,6 @@ function registerIpc(): void {
   ipcMain.handle('sessions:detach', (_e, id: string) => sessions.detach(id))
 
   ipcMain.handle('names:random', () => sessions.randomName())
-  ipcMain.handle('agents:list', () => listAgents())
   ipcMain.handle('quota:get', () => quota)
   ipcMain.on('app:badge', (_e, count: number, png: string | null) => herald.setBadge(count, png))
 }
@@ -220,7 +205,7 @@ async function runDevHelpers(): Promise<void> {
   if (process.env.DRAGON_DEMO_PLAN) {
     // A scripted kingdom (scripts/demo/demo.cjs): fake realms and a cast of dragons across castles and holdings.
     // pr stands in for what the PR watcher would find on GitHub; the demo has no GitHub to ask.
-    type Planned = { projectId: string; name: string; agent: 'claude' | 'copilot'; scenario: string; path?: string; prompt?: string; pr?: PullRequestInfo }
+    type Planned = { projectId: string; name: string; scenario: string; path?: string; prompt?: string; pr?: PullRequestInfo }
     const plan = JSON.parse(require('fs').readFileSync(process.env.DRAGON_DEMO_PLAN, 'utf8')) as Planned[]
     for (const d of plan) {
       const p = projects.get(d.projectId)
@@ -228,7 +213,7 @@ async function runDevHelpers(): Promise<void> {
       process.env.DRAGON_DEMO_SCENARIO = d.scenario
       const target = d.path ? { kind: 'existing' as const, path: d.path } : { kind: 'main' as const }
       try {
-        const s = await sessions.spawn({ projectId: p.id, agent: d.agent, target, prompt: d.prompt, name: d.name }, p)
+        const s = await sessions.spawn({ projectId: p.id, target, prompt: d.prompt, name: d.name }, p)
         if (d.pr) sessions.setPr(s.id, d.pr)
       } catch (err) {
         console.warn('[demo] could not summon', d.name, (err as Error).message)
@@ -253,9 +238,7 @@ async function runDevHelpers(): Promise<void> {
       if (!p) break
       const target = i === 1 && holding ? { kind: 'existing' as const, path: holding.path } : { kind: 'main' as const }
       process.env.DRAGON_DEMO_SCENARIO = scenarios[i]
-      const agent = i === scenarios.length - 1 ? ('copilot' as const) : ('claude' as const)
-      if (agent === 'copilot') process.env.DRAGON_COPILOT_BIN = process.env.DRAGON_COPILOT_BIN || process.env.DRAGON_CLAUDE_BIN || ''
-      const s = await sessions.spawn({ projectId: p.id, agent, target, prompt: i % 2 === 0 ? 'demo quest' : undefined }, p)
+      const s = await sessions.spawn({ projectId: p.id, target, prompt: i % 2 === 0 ? 'demo quest' : undefined }, p)
       if (i === 1) focusId = s.id
     }
     if (process.env.DRAGON_DEMO_FOCUS && focusId) setTimeout(() => send('session:focus', focusId), 5000)

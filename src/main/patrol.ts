@@ -9,7 +9,7 @@ import { DEFAULT_PATROL_ALLOW } from '../shared/patrol.ts'
 
 /**
  * The factory labels patrol reads and writes (the factory-labels skill defines them all). The same names on GitHub
- * and Jira. A ticket is patrol's when it carries both `ready` and `agent`; `working` is the lock while a dragon holds it.
+ * A ticket is patrol's when it carries both `ready` and `agent`; `working` is the lock while a dragon holds it.
  */
 export const LABEL = {
   ready: 'factory:ready',
@@ -22,7 +22,7 @@ export const LABEL = {
 /** A dragon may die on a ticket this many times before patrol flags it factory:agent-blocked for a human. */
 export const MAX_ATTEMPTS = 2
 
-/** What patrol needs from a realm's issue tracker. Implemented for GitHub and Jira in patrolTrackers.ts. */
+/** What patrol needs from a realm's issue tracker. Implemented for GitHub in patrolTrackers.ts. */
 export interface PatrolTracker {
   /** The oldest open issue labelled both factory:ready and factory:agent-owned, or null when there is none. */
   oldestReady(): Promise<Issue | null>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { JiraSite, Project, Tracker } from '@shared/types'
+import type { Project, Tracker } from '@shared/types'
 import { DEFAULT_PATROL_ALLOW, parseAllowList } from '@shared/patrol'
 import { api } from '../api'
 
@@ -18,12 +18,9 @@ export function RealmsDialog({ onClose }: Props) {
   const [all, setAll] = useState<Project[]>([])
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [sites, setSites] = useState<JiraSite[]>([])
-  const [editingJira, setEditingJira] = useState<string | null>(null)
 
   async function reload() {
     setAll(await api.projects.listAll())
-    setSites(await api.jira.sites())
   }
 
   useEffect(() => {
@@ -52,17 +49,6 @@ export function RealmsDialog({ onClose }: Props) {
     setAll(await api.projects.update(id, p))
   }
 
-  function setTrackerKind(p: Project, kind: Tracker['kind']) {
-    if (kind === 'jira') {
-      const prev = p.tracker?.kind === 'jira' ? p.tracker : null
-      void patch(p.id, { tracker: { kind: 'jira', site: prev?.site ?? sites[0]?.site ?? '', projectKey: prev?.projectKey ?? '', jql: prev?.jql } })
-      setEditingJira(p.id)
-    } else {
-      void patch(p.id, { tracker: { kind } })
-      if (editingJira === p.id) setEditingJira(null)
-    }
-  }
-
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div className="modal modal-wide" onMouseDown={(e) => e.stopPropagation()}>
@@ -85,10 +71,9 @@ export function RealmsDialog({ onClose }: Props) {
                     {p.path}
                     {p.isGit ? '' : ' (not git)'}
                   </span>
-                  <select value={t.kind} onChange={(e) => setTrackerKind(p, e.target.value as Tracker['kind'])} title="Issue tracker for this realm">
+                  <select value={t.kind} onChange={(e) => void patch(p.id, { tracker: { kind: e.target.value as Tracker['kind'] } })} title="Issue tracker for this realm">
                     <option value="none">no tracker</option>
                     <option value="github">GitHub issues</option>
-                    <option value="jira">Jira</option>
                   </select>
                   <select value={p.worktreeLayout} onChange={(e) => void patch(p.id, { worktreeLayout: e.target.value as Project['worktreeLayout'] })} title="Where new worktrees go">
                     <option value="sibling">sibling folder</option>
@@ -143,49 +128,10 @@ export function RealmsDialog({ onClose }: Props) {
                     ) : null}
                   </div>
                 ) : null}
-                {t.kind === 'jira' ? (
-                  <div className="realm-jira">
-                    <label>
-                      Jira site
-                      <select
-                        value={t.site}
-                        onChange={(e) => void patch(p.id, { tracker: { ...t, site: e.target.value } })}
-                      >
-                        <option value="">choose a site…</option>
-                        {sites.map((s) => (
-                          <option key={s.site} value={s.site}>
-                            {s.site.replace(/^https?:\/\//, '')}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Project key
-                      <input
-                        type="text"
-                        placeholder="e.g. PLAT"
-                        value={t.projectKey}
-                        onChange={(e) => void patch(p.id, { tracker: { ...t, projectKey: e.target.value.toUpperCase().trim() } })}
-                      />
-                    </label>
-                    <label className="grow">
-                      Custom JQL (optional, replaces the default open-issues query)
-                      <input
-                        type="text"
-                        placeholder={`project = ${t.projectKey || 'KEY'} AND statusCategory != Done ORDER BY updated DESC`}
-                        value={t.jql ?? ''}
-                        onChange={(e) => void patch(p.id, { tracker: { ...t, jql: e.target.value || undefined } })}
-                      />
-                    </label>
-                    {sites.length === 0 ? <span className="hint block">Add a Jira site below first.</span> : null}
-                  </div>
-                ) : null}
               </div>
             )
           })}
         </div>
-
-        <JiraSites sites={sites} onChanged={setSites} />
 
         {error ? <div className="error">{error}</div> : null}
         <p className="hint">Remove only forgets the realm. Nothing on disk is deleted, and Add folder brings it back.</p>
@@ -207,7 +153,6 @@ export function RealmsDialog({ onClose }: Props) {
   )
 }
 
-/** Jira credentials, one entry per site. Tokens are encrypted by the OS and never shown again. */
 /**
  * The shell commands a realm's patrol dragons may run without asking, one per line. Saved when the box loses
  * focus, so a half-typed line is never saved. File edits are always allowed; anything else asks you.
@@ -226,98 +171,5 @@ function AllowList({ allow, onSave }: { allow: string[]; onSave(allow: string[])
         Reset to defaults
       </button>
     </label>
-  )
-}
-
-function JiraSites({ sites, onChanged }: { sites: JiraSite[]; onChanged(sites: JiraSite[]): void }) {
-  const [open, setOpen] = useState(false)
-  const [site, setSite] = useState('')
-  const [email, setEmail] = useState('')
-  const [token, setToken] = useState('')
-  const [status, setStatus] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  async function save() {
-    setBusy(true)
-    setStatus(null)
-    try {
-      const next = await api.jira.saveSite(site, email, token)
-      onChanged(next)
-      setToken('')
-      const who = await api.jira.test(site)
-      setStatus(`Connected as ${who}.`)
-    } catch (err) {
-      setStatus((err as Error).message.replace(/^Error invoking remote method '[^']+': Error: /, ''))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function test(s: string) {
-    setStatus(null)
-    try {
-      setStatus(`${s.replace(/^https?:\/\//, '')}: connected as ${await api.jira.test(s)}.`)
-    } catch (err) {
-      setStatus((err as Error).message.replace(/^Error invoking remote method '[^']+': Error: /, ''))
-    }
-  }
-
-  return (
-    <fieldset className="jira-sites">
-      <legend>
-        Jira sites ({sites.length}){' '}
-        <button type="button" className="ghost small" onClick={() => setOpen((o) => !o)}>
-          {open ? 'hide' : 'manage'}
-        </button>
-      </legend>
-      {open ? (
-        <>
-          {sites.map((s) => (
-            <div key={s.site} className="row jira-site-row">
-              <span className="realm-path">{s.site.replace(/^https?:\/\//, '')}</span>
-              <span className="hint">{s.email || 'bearer token'}</span>
-              <span className="spacer" />
-              <button type="button" className="ghost small" onClick={() => void test(s.site)}>
-                Test
-              </button>
-              <button
-                type="button"
-                className="ghost small"
-                onClick={() => {
-                  setSite(s.site)
-                  setEmail(s.email)
-                  setToken('')
-                }}
-              >
-                Edit
-              </button>
-              <button type="button" className="danger small" onClick={() => void api.jira.removeSite(s.site).then(onChanged)}>
-                Forget
-              </button>
-            </div>
-          ))}
-          <div className="jira-form">
-            <label>
-              Site URL
-              <input type="text" placeholder="https://acme.atlassian.net" value={site} onChange={(e) => setSite(e.target.value)} />
-            </label>
-            <label>
-              Email (leave blank for a Data Center personal access token)
-              <input type="text" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </label>
-            <label>
-              API token {sites.some((s) => s.site === site.trim().toLowerCase().replace(/\/+$/, '')) ? '(blank keeps the saved one)' : ''}
-              <input type="password" placeholder="from id.atlassian.com → Security → API tokens" value={token} onChange={(e) => setToken(e.target.value)} />
-            </label>
-            <div className="row">
-              <button type="button" className="primary small" disabled={busy || !site.trim()} onClick={() => void save()}>
-                {busy ? 'Saving…' : 'Save and test'}
-              </button>
-              {status ? <span className="hint">{status}</span> : null}
-            </div>
-          </div>
-        </>
-      ) : null}
-    </fieldset>
   )
 }

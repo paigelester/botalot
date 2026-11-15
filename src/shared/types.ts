@@ -8,16 +8,7 @@ export type SessionState = 'working' | 'waiting' | 'idle' | 'dead' | 'dormant'
 export const UNCLAIMED_REALM = 'unclaimed'
 
 /** Which coding agent a dragon runs. */
-export type AgentKind = 'claude' | 'copilot'
-
-export interface AgentInfo {
-  id: AgentKind
-  label: string
-  /** Resolved executable, or null when not installed. */
-  path: string | null
-  /** Human note, e.g. how to install, or how state is detected. */
-  note?: string
-}
+export type AgentKind = 'claude'
 
 export type WorktreeLayout = 'sibling' | 'inside'
 
@@ -93,7 +84,7 @@ export interface Session {
   pr?: PullRequestInfo
   /** Most recent hook event name, for debugging and the status strip. */
   lastEvent?: string
-  /** The agent's own session id (Claude: from the SessionStart hook; Copilot: set by the app). Needed to resume. */
+  /** The agent's own session id (from the SessionStart hook). Needed to resume. */
   claudeSessionId?: string
   /** True when the dragon can be woken: dormant or dead, with its folder still on disk. */
   resumable?: boolean
@@ -131,21 +122,10 @@ export type SpawnTarget =
   | { kind: 'new'; branch: string; folder?: string }
 
 /** Which issue tracker a realm uses. Chosen per realm, not per dragon. */
-export type Tracker =
-  | { kind: 'none' }
-  | { kind: 'github' }
-  | {
-      kind: 'jira'
-      /** Jira site, e.g. https://acme.atlassian.net. Credentials are stored per site. */
-      site: string
-      /** Project key such as PLAT. Issues are listed from this project unless jql is set. */
-      projectKey: string
-      /** Optional JQL that replaces the default "open issues in project" query. */
-      jql?: string
-    }
+export type Tracker = { kind: 'none' } | { kind: 'github' }
 
 export interface Issue {
-  /** Tracker key: "91" for GitHub, "PLAT-123" for Jira. Branches start with it. */
+  /** Tracker key: "91" for GitHub. Branches start with it. */
   key: string
   title: string
   body: string
@@ -161,15 +141,8 @@ export interface IssueList {
   issues: Issue[]
   /** True when more issues exist than were returned; the picker then offers a server-side search. */
   truncated?: boolean
-  /** Set when the tracker is unreachable: gh missing, not logged in, bad Jira credentials, and so on. */
+  /** Set when the tracker is unreachable: gh missing, not logged in, and so on. */
   error?: string
-}
-
-/** A Jira site the user has credentials for. The token itself never leaves the main process. */
-export interface JiraSite {
-  site: string
-  email: string
-  hasToken: boolean
 }
 
 export interface SpawnRequest {
@@ -179,7 +152,7 @@ export interface SpawnRequest {
   target: SpawnTarget
   prompt?: string
   name?: string
-  /** Claude only: run as a background session (`claude --bg`) that keeps going after the app quits. Needs a prompt. */
+  /** Run as a background session (`claude --bg`) that keeps going after the app quits. Needs a prompt. */
   background?: boolean
   /** Background only: let it work unattended. File edits are accepted, and these shell commands run without asking. */
   allow?: string[]
@@ -201,14 +174,6 @@ export interface DragonApi {
     /** Open issues for the realm from its tracker. `search` asks the tracker itself rather than listing recent ones. */
     issues(id: string, search?: string): Promise<IssueList>
     onChanged(cb: (projects: Project[]) => void): () => void
-  }
-  jira: {
-    sites(): Promise<JiraSite[]>
-    /** Saves credentials for a site. An empty token keeps the existing one. */
-    saveSite(site: string, email: string, token: string): Promise<JiraSite[]>
-    removeSite(site: string): Promise<JiraSite[]>
-    /** Checks the credentials by calling the Jira API. Returns the display name, or throws. */
-    test(site: string): Promise<string>
   }
   sessions: {
     list(): Promise<Session[]>
@@ -233,9 +198,6 @@ export interface DragonApi {
   }
   names: {
     random(): Promise<string>
-  }
-  agents: {
-    list(): Promise<AgentInfo[]>
   }
   app: {
     /** Show the waiting count on the taskbar icon. `png` is the badge image as a data URL; count 0 clears it. */

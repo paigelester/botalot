@@ -53,7 +53,7 @@ const readme = (title, blurb) => ({ 'README.md': `# ${title}\n\n${blurb}\n`, 'sr
 
 const realms = [
   { id: 'demo-dragonforge', name: 'Dragonforge', tint: 0xe05a3a, tracker: { kind: 'github' }, ...realm('dragonforge', readme('Dragonforge', 'Where the kingdom smelts its code.'), ['142-forge-cooling', 'draft/ember']) },
-  { id: 'demo-skyharbour', name: 'Skyharbour', tint: 0x3a8fe0, tracker: { kind: 'jira', site: 'https://skyharbour.atlassian.net', projectKey: 'SKY' }, ...realm('skyharbour', readme('Skyharbour', 'Docks for the airships.'), ['SKY-87-dock-scheduler']) },
+  { id: 'demo-skyharbour', name: 'Skyharbour', tint: 0x3a8fe0, tracker: { kind: 'github' }, ...realm('skyharbour', readme('Skyharbour', 'Docks for the airships.'), ['87-dock-scheduler']) },
   { id: 'demo-ravenmoor', name: 'Ravenmoor', tint: 0x9c5be0, tracker: { kind: 'github' }, ...realm('ravenmoor', readme('Ravenmoor', 'Messaging across the moors.'), ['203-raven-post']) },
   { id: 'demo-thornfield', name: 'Thornfield', tint: 0x4fb563, tracker: { kind: 'none' }, ...realm('thornfield', readme('Thornfield', 'Hedge mazes and test suites.'), []) },
   { id: 'demo-mistral-docks', name: 'Mistral Docks', tint: 0xd8a53b, tracker: { kind: 'none' }, ...realm('mistral-docks', readme('Mistral Docks', 'Wind-powered deployments.'), ['31-weather-vane']) }
@@ -85,21 +85,21 @@ fs.writeFileSync(path.join(userData, 'sessions.json'), JSON.stringify({ sessions
 
 // Who flies where. scenario drives the fake agent in scripts/demo/demo-claude.cjs.
 const plan = [
-  { projectId: 'demo-dragonforge', name: 'Ember', agent: 'claude', scenario: 'busy', prompt: 'Forge the cooling system' },
-  { projectId: 'demo-dragonforge', name: 'Vyrax', agent: 'copilot', scenario: 'waiting', path: realms[0].holdings['142-forge-cooling'], pr: { number: 142, url: 'https://github.com/example/dragonforge/pull/142', state: 'OPEN', draft: false, ci: 'fail' } },
-  { projectId: 'demo-dragonforge', name: 'Sylthra', agent: 'claude', scenario: 'idle', path: realms[0].holdings['draft/ember'], pr: { number: 151, url: 'https://github.com/example/dragonforge/pull/151', state: 'OPEN', draft: true, ci: 'pass' } },
-  { projectId: 'demo-skyharbour', name: 'Nimbus', agent: 'claude', scenario: 'idle' },
-  { projectId: 'demo-skyharbour', name: 'Tidewing', agent: 'copilot', scenario: 'busy', path: realms[1].holdings['SKY-87-dock-scheduler'], prompt: 'Schedule the docks' },
-  { projectId: 'demo-ravenmoor', name: 'Umbra', agent: 'claude', scenario: 'hang', prompt: 'Deliver the ravens' },
-  { projectId: 'demo-ravenmoor', name: 'Morrow', agent: 'claude', scenario: 'dead', path: realms[2].holdings['203-raven-post'], pr: { number: 203, url: 'https://github.com/example/ravenmoor/pull/203', state: 'MERGED', draft: false, ci: 'pass' } },
-  { projectId: 'demo-thornfield', name: 'Thornmaw', agent: 'claude', scenario: 'waiting', prompt: 'Trim the hedges' },
-  { projectId: 'demo-thornfield', name: 'Kaelith', agent: 'copilot', scenario: 'busy', prompt: 'Run the test suite' }
+  { projectId: 'demo-dragonforge', name: 'Ember', scenario: 'busy', prompt: 'Forge the cooling system' },
+  { projectId: 'demo-dragonforge', name: 'Vyrax', scenario: 'waiting', path: realms[0].holdings['142-forge-cooling'], pr: { number: 142, url: 'https://github.com/example/dragonforge/pull/142', state: 'OPEN', draft: false, ci: 'fail' } },
+  { projectId: 'demo-dragonforge', name: 'Sylthra', scenario: 'idle', path: realms[0].holdings['draft/ember'], pr: { number: 151, url: 'https://github.com/example/dragonforge/pull/151', state: 'OPEN', draft: true, ci: 'pass' } },
+  { projectId: 'demo-skyharbour', name: 'Nimbus', scenario: 'idle' },
+  { projectId: 'demo-skyharbour', name: 'Tidewing', scenario: 'busy', path: realms[1].holdings['87-dock-scheduler'], prompt: 'Schedule the docks' },
+  { projectId: 'demo-ravenmoor', name: 'Umbra', scenario: 'hang', prompt: 'Deliver the ravens' },
+  { projectId: 'demo-ravenmoor', name: 'Morrow', scenario: 'dead', path: realms[2].holdings['203-raven-post'], pr: { number: 203, url: 'https://github.com/example/ravenmoor/pull/203', state: 'MERGED', draft: false, ci: 'pass' } },
+  { projectId: 'demo-thornfield', name: 'Thornmaw', scenario: 'waiting', prompt: 'Trim the hedges' },
+  { projectId: 'demo-thornfield', name: 'Kaelith', scenario: 'busy', prompt: 'Run the test suite' }
 ]
 const planPath = path.join(userData, 'demo-plan.json')
 fs.writeFileSync(planPath, JSON.stringify(plan, null, 2))
 
 const fake = path.join(root, 'scripts', 'demo', 'demo-claude.cjs')
-const env = { ...process.env, DRAGON_DEMO: '1', DRAGON_DEMO_PLAN: planPath, DRAGON_CLAUDE_BIN: fake, DRAGON_COPILOT_BIN: fake }
+const env = { ...process.env, DRAGON_DEMO: '1', DRAGON_DEMO_PLAN: planPath, DRAGON_CLAUDE_BIN: fake }
 for (const arg of process.argv.slice(2)) {
   const m = /^--shot=(.+)$/.exec(arg)
   if (m) {

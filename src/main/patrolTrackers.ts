@@ -3,7 +3,6 @@ import { join } from 'path'
 import type { Project } from '@shared/types'
 import { configDir } from './config'
 import { githubComment, githubEnsureLabels, githubLabels, githubOldestWithLabels, githubRelabel } from './github'
-import { jiraComment, jiraLabels, jiraOldestWithLabels, jiraRelabel } from './jira'
 import { LABEL, type AttemptStore, type PatrolTracker } from './patrol'
 
 /** The labels patrol uses, created on GitHub when missing. Same colours as the setup-factory skill's setup.sh. */
@@ -15,7 +14,7 @@ const GITHUB_LABELS = [
   { name: LABEL.blocked, color: 'B60205', description: 'Agent stopped: no access, secret or service' }
 ]
 
-/** The realm's tracker as patrol sees it: GitHub issues through gh, or Jira issues through its REST API. */
+/** The realm's tracker as patrol sees it: GitHub issues through gh. */
 export function patrolTrackerFor(p: Project): PatrolTracker | null {
   const t = p.tracker
   if (t?.kind === 'github') {
@@ -25,16 +24,6 @@ export function patrolTrackerFor(p: Project): PatrolTracker | null {
       relabel: (key, remove, add) => githubRelabel(p.path, key, remove, add),
       comment: (key, text) => githubComment(p.path, key, text),
       ensureLabels: () => githubEnsureLabels(p.path, GITHUB_LABELS)
-    }
-  }
-  if (t?.kind === 'jira' && t.site && t.projectKey) {
-    return {
-      oldestReady: () => jiraOldestWithLabels(t, [LABEL.ready, LABEL.agent]),
-      labels: (key) => jiraLabels(t, key),
-      relabel: (key, remove, add) => jiraRelabel(t, key, remove, add),
-      comment: (key, text) => jiraComment(t, key, text),
-      // Jira creates a label the first time an issue gets it.
-      ensureLabels: async () => {}
     }
   }
   return null

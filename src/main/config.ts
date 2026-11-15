@@ -35,8 +35,8 @@ let migrated = false
 
 /**
  * The app was called Dragon Kingdom before it was Botalot, and Electron names the config
- * folder after the app. On first run under the new name, carry the old folder's config,
- * secrets and dragon records across so nothing is lost.
+ * folder after the app. On first run under the new name, carry the old folder's config
+ * and dragon records across so nothing is lost.
  */
 function migrateFromDragonKingdom(dir: string): void {
   if (migrated) return
@@ -45,7 +45,7 @@ function migrateFromDragonKingdom(dir: string): void {
     if (existsSync(join(dir, 'config.json'))) return
     const old = join(dirname(dir), 'dragon-kingdom')
     if (!existsSync(join(old, 'config.json'))) return
-    for (const f of ['config.json', 'secrets.json', 'sessions.json']) {
+    for (const f of ['config.json', 'sessions.json']) {
       if (existsSync(join(old, f))) copyFileSync(join(old, f), join(dir, f))
     }
     writeFileSync(join(old, 'MOVED-TO-BOTALOT.txt'), `This app is now called Botalot. Its settings moved to ${dir} on ${new Date().toISOString()}.\n`, 'utf8')
@@ -69,8 +69,10 @@ export function configPath(): string {
 export function loadConfig(): AppConfig {
   try {
     const raw = readFileSync(configPath(), 'utf8')
-    const parsed = JSON.parse(raw)
-    return { ...defaults, ...parsed }
+    const cfg: AppConfig = { ...defaults, ...JSON.parse(raw) }
+    // A config saved by an earlier version may name a tracker the app no longer supports; such a realm has none.
+    for (const p of cfg.projects) if (p.tracker && p.tracker.kind !== 'github') p.tracker = { kind: 'none' }
+    return cfg
   } catch {
     return { ...defaults }
   }

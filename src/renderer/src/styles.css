@@ -484,41 +484,9 @@ select:focus {
   text-overflow: ellipsis;
 }
 
-.agent-row {
-  display: flex;
-  gap: 8px;
-}
-.agent-choice {
-  flex: 1;
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center;
-  gap: 8px !important;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--ink) !important;
-  cursor: pointer;
-  flex-wrap: wrap;
-}
-.agent-choice.selected {
-  border-color: var(--gold-dim);
-  background: #231b38;
-}
-.agent-choice.unavailable {
-  opacity: 0.5;
-  cursor: default;
-}
-.agent-choice .hint.block {
-  flex-basis: 100%;
-  margin-left: 22px;
-}
 .badge-agent {
   color: var(--ink-dim);
   border-style: dashed;
-}
-.badge-agent-copilot {
-  color: #9fd0ff;
 }
 .badge-background {
   color: #c9b8ff;
@@ -607,7 +575,7 @@ select:focus {
   margin-left: 22px;
 }
 
-/* Realms: tracker and Jira */
+/* Realms: tracker */
 .realm-block {
   display: flex;
   flex-direction: column;
@@ -617,40 +585,6 @@ select:focus {
 }
 .realm-row {
   grid-template-columns: 24px 140px 1fr 120px 130px auto auto;
-}
-.realm-jira {
-  display: flex;
-  gap: 8px;
-  margin-left: 32px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-.realm-jira label {
-  font-size: 11px;
-  min-width: 160px;
-}
-.realm-jira label.grow {
-  flex: 1;
-}
-.jira-sites {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 12px;
-}
-.jira-site-row {
-  padding: 4px 0;
-}
-.jira-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
-}
-.jira-form label:nth-child(3) {
-  grid-column: 1 / -1;
-}
-.jira-form .row {
-  grid-column: 1 / -1;
 }
 
 .issue-selected {

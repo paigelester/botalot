@@ -1,7 +1,6 @@
 # Botalot
 
-A fantasy-themed command view for running many coding-agent sessions at once,
-Claude Code and GitHub Copilot CLI side by side.
+A fantasy-themed command view for running many Claude Code sessions at once.
 Every session is a dragon. Every project is a castle. Every git worktree is a
 small holding near its castle. Click a dragon to open its real terminal.
 
@@ -12,8 +11,7 @@ small holding near its castle. Click a dragon to open its real terminal.
     npm run build      # production bundle into out/
     npm start          # run the production bundle
 
-Requires Node 20+, git, and at least one agent on PATH: `claude` (Claude Code)
-or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot login`). Windows is the primary target
+Requires Node 20+, git, and `claude` (Claude Code) on PATH. Windows is the primary target
 (ConPTY via node-pty); it should also run on macOS and Linux.
 
 ## How it works
@@ -30,21 +28,14 @@ or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot logi
   dragon file the issue and rename its own branch later; the map follows the
   rename.
 - **Issue trackers** are chosen per realm in the Realms dialog: GitHub issues
-  (via the gh CLI; inferred automatically when origin is on github.com), Jira,
-  or none. Jira credentials are stored per site, encrypted with the OS
-  (Electron safeStorage, DPAPI on Windows) in the app's config folder; a realm
-  points at a site plus a project key, with optional custom JQL. The issue picker
+  (via the gh CLI; inferred automatically when origin is on github.com) or none.
+  The issue picker
   filters the 100 most recently updated open issues as you type and can search
   the tracker itself when more exist.
-- **Agents.** Each dragon is either Claude Code or GitHub Copilot; pick when you
-  summon. Copilot dragons carry a small star after their name.
 - **State** comes from agent hooks. Claude sessions are started with
-  `--settings <generated file>` so the hooks apply only to dragons. Copilot CLI
-  has no per-session flag, so the app writes one user-level hooks file,
-  `~/.copilot/hooks/botalot.json` (or under `COPILOT_HOME`); it is inert
-  outside the app because `hooks/notify.js` exits at once without `DRAGON_PORT`.
-  Both agents post the same events (SessionStart, UserPromptSubmit, PreToolUse,
-  PostToolUse, PermissionRequest, Stop, SessionEnd, errors, notifications) to the
+  `--settings <generated file>` so the hooks apply only to dragons.
+  They post their events (SessionStart, UserPromptSubmit, PreToolUse,
+  PostToolUse, PermissionRequest, Stop, SessionEnd, notifications) to the
   app on localhost. Claude Code's live session registry (`~/.claude/sessions`) is
   a fallback when hooks are quiet, and if an agent sends no hooks at all the app
   falls back to watching terminal output: output means working, silence means
@@ -54,7 +45,7 @@ or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot logi
   branch or agent session id changes. Quitting the app stops the processes but
   keeps the records, so on the next launch the dragons return faded and dormant.
   Wake one and the agent resumes its own session in the same folder, with the
-  same conversation (`claude --resume` / `copilot --resume`). Bury forgets it.
+  same conversation (`claude --resume`). Bury forgets it.
 - **Awaiting you.** The "awaiting you" pill in the top bar (or Ctrl+Shift+A) opens
   a list of every waiting dragon, longest-waiting first, with what it needs. Type a
   quick reply and press Enter to send it to the dragon's terminal, or Open it.
@@ -74,9 +65,8 @@ or `copilot` (GitHub Copilot CLI, `npm i -g @github/copilot`, then `copilot logi
   itself (`factory:agent-awaiting-human` / `factory:agent-blocked`) and says why in
   a comment. The factory skills and labels come from `paigelester/skills`; see
   [Factory skills](#factory-skills). At most
-  N patrol dragons per realm at once (default 1). Works with GitHub (labels via
-  `gh`) and Jira (labels via its API); pull requests are found with `gh` either
-  way. Attempt counts live in `patrol.json` in the config folder.
+  N patrol dragons per realm at once (default 1). Labels and pull requests are
+  read and changed with `gh`. Attempt counts live in `patrol.json` in the config folder.
   Patrol dragons work unattended, so they accept file edits and run the realm's
   allowed commands without asking (by default the checks, `git add/commit/push`
   and `gh` for issues and PRs; edit the list under the realm in Realms). Any other
@@ -151,12 +141,12 @@ placeholder dragon.
 
 A self-contained show kingdom: five fictional realms are created as throwaway git
 repos with worktrees under your temp folder, the app runs with its own config so
-your real kingdom is untouched, and fake dragons (Claude and Copilot, castles and
+your real kingdom is untouched, and fake dragons (castles and
 holdings, every state including dormant) fill the map. Add `-- --shot=out.png` to
 capture a screenshot and exit.
 
-Other dev switches: `DRAGON_CLAUDE_BIN` / `DRAGON_COPILOT_BIN` override the agent
-binaries, `DRAGON_SCREENSHOT=path.png` captures the window after a delay and quits,
+Other dev switches: `DRAGON_CLAUDE_BIN` overrides the `claude`
+binary, `DRAGON_SCREENSHOT=path.png` captures the window after a delay and quits,
 `DRAGON_DEMO=1` alone summons a few fake dragons into your real realms.
 
 ## Layout

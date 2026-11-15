@@ -11,7 +11,7 @@ interface Props {
   onLoaded?(list: IssueList): void
 }
 
-const TRACKER_LABEL: Record<Tracker['kind'], string> = { none: 'issue', github: 'GitHub', jira: 'Jira' }
+const TRACKER_LABEL: Record<Tracker['kind'], string> = { none: 'issue', github: 'GitHub' }
 
 function matches(issue: Issue, q: string): boolean {
   const needle = q.toLowerCase()

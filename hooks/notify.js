@@ -26,7 +26,7 @@ if (!port && portFile) {
 }
 const canPost = !!port && (!!dragonId || !!portFile)
 
-// `--event <Name>` is passed from the hook config so camelCase payloads (Copilot CLI) are self-describing too.
+// `--event <Name>` is passed from the hook config so payloads that carry no event name (the status line's) are self-describing too.
 const eventArg = arg('--event')
 // As a status line, the user's own status line command (base64), whose output is printed in our place.
 const chain = arg('--chain') ? Buffer.from(arg('--chain'), 'base64').toString('utf8') : ''

@@ -1,9 +1,8 @@
 import { execFileSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
-import { homedir } from 'os'
+import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
-import type { AgentInfo, AgentKind } from '@shared/types'
-import { hookScriptPath, writeBackgroundHookSettings, writeHookSettings } from './hooks'
+import type { AgentKind } from '@shared/types'
+import { writeBackgroundHookSettings, writeHookSettings } from './hooks'
 
 /** node-pty on Windows needs a full executable path, so resolve bare names through where.exe. */
 export function resolveOnPath(name: string): string | null {
@@ -39,12 +38,8 @@ function unwrapNpmShim(cmdPath: string): string | null {
   }
 }
 
-/** Events both agents understand, in the PascalCase spelling they share. */
-const COMMON_EVENTS = ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'Stop', 'PermissionRequest', 'Notification']
-/** Claude Code only: Elicitation fires when an MCP tool asks the user a question. */
-const CLAUDE_EVENTS = [...COMMON_EVENTS, 'Elicitation']
-/** Copilot CLI only: ErrorOccurred. Its notification event exists only in camelCase and is added separately. */
-const COPILOT_EVENTS = [...COMMON_EVENTS.filter((e) => e !== 'Notification'), 'ErrorOccurred']
+/** The hook events the app listens to. Elicitation fires when an MCP tool asks the user a question. */
+const CLAUDE_EVENTS = ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'Stop', 'PermissionRequest', 'Notification', 'Elicitation']
 
 export interface AgentDef {
   id: AgentKind
@@ -53,12 +48,9 @@ export interface AgentDef {
   /** Environment variable that overrides the binary (demo mode and tests). */
   override: string
   /** Build the argv for a new interactive session. */
-  args(opts: { prompt?: string; sessionId: string; name: string; hookSettingsPath: string }): string[]
+  args(opts: { prompt?: string; hookSettingsPath: string }): string[]
   /** Argv to resume an earlier session. agentSessionId is the agent's own id when known. */
-  resumeArgs(opts: { sessionId: string; agentSessionId?: string; name: string; hookSettingsPath: string }): string[]
-  /** Setup before a session starts in `cwd`: hook wiring, folder trust, and so on. */
-  prepare(cwd: string): Promise<string | undefined>
-  note?: string
+  resumeArgs(opts: { agentSessionId?: string; hookSettingsPath: string }): string[]
 }
 
 export const AGENTS: Record<AgentKind, AgentDef> = {
@@ -73,87 +65,7 @@ export const AGENTS: Record<AgentKind, AgentDef> = {
       return a
     },
     resumeArgs: ({ agentSessionId, hookSettingsPath }) =>
-      agentSessionId ? ['--settings', hookSettingsPath, '--resume', agentSessionId] : ['--settings', hookSettingsPath, '--continue'],
-    prepare: async () => undefined,
-    note: 'Hooks are injected per session with --settings; your own settings are untouched.'
-  },
-  copilot: {
-    id: 'copilot',
-    label: 'GitHub Copilot',
-    binary: 'copilot',
-    override: 'DRAGON_COPILOT_BIN',
-    args: ({ prompt, sessionId, name }) => {
-      const a = ['--session-id', sessionId, '-n', name]
-      if (prompt) a.push('-i', prompt)
-      return a
-    },
-    resumeArgs: ({ sessionId, agentSessionId }) => ['--resume', agentSessionId || sessionId],
-    prepare: async (cwd) => {
-      trustFolderForCopilot(cwd)
-      return ensureCopilotHooks()
-    },
-    note: 'Needs the Copilot CLI (npm i -g @github/copilot). The app writes one user-level hooks file and marks the realm folder as trusted.'
-  }
-}
-
-export function copilotHome(): string {
-  return process.env.COPILOT_HOME || join(homedir(), '.copilot')
-}
-
-/**
- * Copilot CLI asks "Do you trust the files in this folder?" before any hook fires.
- * Summoning a dragon into a realm is that answer, so record the folder in config.json up front.
- */
-export function trustFolderForCopilot(cwd: string): void {
-  const file = join(copilotHome(), 'config.json')
-  try {
-    // The file starts with // comment lines that Copilot writes; keep them and parse the rest.
-    let header = ''
-    let cfg: Record<string, unknown> = {}
-    if (existsSync(file)) {
-      const lines = readFileSync(file, 'utf8').split(/\r?\n/)
-      const headerLines: string[] = []
-      while (lines.length && /^\s*\/\//.test(lines[0])) headerLines.push(lines.shift()!)
-      header = headerLines.length ? headerLines.join('\n') + '\n' : ''
-      const body = lines.join('\n').trim()
-      cfg = body ? (JSON.parse(body) as Record<string, unknown>) : {}
-    }
-    const list = Array.isArray(cfg.trustedFolders) ? (cfg.trustedFolders as string[]) : []
-    const norm = (p: string) => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
-    if (list.some((p) => norm(p) === norm(cwd))) return
-    cfg.trustedFolders = [...list, cwd]
-    mkdirSync(copilotHome(), { recursive: true })
-    writeFileSync(file, header + JSON.stringify(cfg, null, 2) + '\n', 'utf8')
-  } catch (err) {
-    console.warn('could not update Copilot trusted folders', err)
-  }
-}
-
-/**
- * Copilot CLI has no per-session settings flag, so hooks go in the user-level hooks folder.
- * They are inert outside the app: notify.js exits immediately when DRAGON_PORT is not set.
- */
-export async function ensureCopilotHooks(): Promise<string | undefined> {
-  const node = resolveOnPath('node') ?? 'node'
-  const script = hookScriptPath()
-  const hooks: Record<string, unknown[]> = {}
-  for (const ev of COPILOT_EVENTS) hooks[ev] = [{ type: 'command', exec: node, args: [script, '--event', ev], timeoutSec: 5 }]
-  // Notifications only exist in the camelCase spelling.
-  hooks.notification = [{ type: 'command', exec: node, args: [script, '--event', 'Notification'], timeoutSec: 5 }]
-  const content = JSON.stringify({ version: 1, hooks }, null, 2) + '\n'
-  const dir = join(copilotHome(), 'hooks')
-  const file = join(dir, 'botalot.json')
-  try {
-    // The app used to be called Dragon Kingdom; retire its hooks file so events are not delivered twice.
-    const old = join(dir, 'dragon-kingdom.json')
-    if (existsSync(old)) rmSync(old, { force: true })
-    if (existsSync(file) && readFileSync(file, 'utf8') === content) return file
-    mkdirSync(dir, { recursive: true })
-    writeFileSync(file, content, 'utf8')
-    return file
-  } catch (err) {
-    console.warn('could not write Copilot hooks file', err)
-    return undefined
+      agentSessionId ? ['--settings', hookSettingsPath, '--resume', agentSessionId] : ['--settings', hookSettingsPath, '--continue']
   }
 }
 
@@ -177,13 +89,4 @@ export function childEnv(): Record<string, string> {
   for (const [k, v] of Object.entries(process.env)) if (typeof v === 'string') env[k] = v
   for (const k of Object.keys(env)) if (k === 'CLAUDECODE' || k === 'CLAUDE_PID' || k.startsWith('CLAUDE_CODE_')) delete env[k]
   return env
-}
-
-export function listAgents(): AgentInfo[] {
-  return (Object.values(AGENTS) as AgentDef[]).map((a) => ({
-    id: a.id,
-    label: a.label,
-    path: process.env[a.override] || resolveOnPath(a.binary),
-    note: a.note
-  }))
 }

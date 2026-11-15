@@ -59,7 +59,7 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
             {session.name}
           </span>
           <span className={'badge badge-' + session.state}>{STATE_LABEL[session.state]}</span>
-          <span className={'badge badge-agent badge-agent-' + session.agent}>{session.agent === 'copilot' ? 'Copilot' : 'Claude'}</span>
+          <span className="badge badge-agent">Claude</span>
           {wild ? (
             <span className="badge badge-wild" title={'Background session ' + session.backgroundId + ', started outside Botalot'}>
               Wild
@@ -147,9 +147,7 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
           <p className="hint">
             {session.claudeSessionId
               ? 'Session ' + session.claudeSessionId.slice(0, 8) + '…'
-              : session.agent === 'claude'
-                ? 'No session id was recorded, so waking continues the most recent session in this folder.'
-                : ''}
+              : 'No session id was recorded, so waking continues the most recent session in this folder.'}
           </p>
         </div>
       ) : (

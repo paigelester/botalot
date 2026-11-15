@@ -2,7 +2,7 @@
 // Shared by the Summon dialog (issues picked by hand) and patrol (issues picked up automatically).
 import type { Issue, Tracker } from './types.ts'
 
-export const TRACKER_NAME: Record<Tracker['kind'], string> = { none: 'tracker', github: 'GitHub', jira: 'Jira' }
+export const TRACKER_NAME: Record<Tracker['kind'], string> = { none: 'tracker', github: 'GitHub' }
 
 /** Branch-safe slug from an issue title: drops leading tags like [WORK] or (You), cuts at a word boundary. */
 export function slugify(text: string, max = 40): string {

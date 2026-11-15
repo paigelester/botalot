@@ -29,7 +29,8 @@ function file(): string {
 export function loadSessionRecords(): SessionRecord[] {
   try {
     const parsed = JSON.parse(readFileSync(file(), 'utf8')) as { sessions?: SessionRecord[] }
-    return Array.isArray(parsed.sessions) ? parsed.sessions : []
+    // Records from earlier versions may name an agent the app no longer runs; those dragons are left behind.
+    return Array.isArray(parsed.sessions) ? parsed.sessions.filter((r) => r.agent === 'claude') : []
   } catch {
     return []
   }

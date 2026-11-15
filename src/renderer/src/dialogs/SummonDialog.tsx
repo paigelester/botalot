@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { AgentInfo, AgentKind, Issue, IssueList, Project, SpawnRequest, Tracker, Worktree } from '@shared/types'
+import type { Issue, IssueList, Project, SpawnRequest, Tracker, Worktree } from '@shared/types'
 import { TRACKER_NAME, issueBranch, issuePrompt, slugify } from '@shared/issues'
 import { api } from '../api'
 import { IssuePicker } from './IssuePicker'
@@ -19,25 +19,15 @@ function draftPrompt(branch: string, tracker: Tracker['kind']): string {
   const file =
     tracker === 'github'
       ? 'create a GitHub issue for it with `gh issue create`'
-      : tracker === 'jira'
-        ? 'ask me to create the Jira issue and give you its key'
-        : 'ask me whether a ticket is needed'
+      : 'ask me whether a ticket is needed'
   return `I have a rough idea I want to think through with you before any code is written. Ask me questions until we both understand it. Do not edit files yet.
 
 When I say "go": ${file}, then rename this branch to <issue-key>-<short-slug> with \`git branch -m ${branch} <new-name>\`, and start implementing.`
 }
 
-/** The summoning circle: choose a realm, an agent, a holding, a name, and a first quest. */
+/** The summoning circle: choose a realm, a holding, a name, and a first quest. */
 export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }: Props) {
   const [projectId, setProjectId] = useState(initialProjectId ?? projects[0]?.id ?? '')
-  const [agents, setAgents] = useState<AgentInfo[]>([])
-  const [agent, setAgent] = useState<AgentKind>(() => {
-    try {
-      return (localStorage.getItem('dragon.lastAgent') as AgentKind) || 'claude'
-    } catch {
-      return 'claude'
-    }
-  })
   const [mode, setMode] = useState<Mode>('main')
   const [naming, setNaming] = useState<Naming>('issue')
   const [worktrees, setWorktrees] = useState<Worktree[]>([])
@@ -54,26 +44,13 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
   const [background, setBackground] = useState(false)
 
   const project = projects.find((p) => p.id === projectId)
-  const runInBackground = background && agent === 'claude'
   const tracker: Tracker['kind'] = project?.tracker?.kind ?? 'none'
   const trackerReady = tracker !== 'none'
   const dragonSlug = slugify(name) || 'dragon'
 
   useEffect(() => {
     void api.names.random().then(setName)
-    void api.agents.list().then((list) => {
-      setAgents(list)
-      setAgent((a) => (list.find((x) => x.id === a)?.path ? a : (list.find((x) => x.path)?.id ?? a)))
-    })
   }, [])
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('dragon.lastAgent', agent)
-    } catch {
-      /* private mode */
-    }
-  }, [agent])
 
   useEffect(() => {
     if (!projectId) return
@@ -139,7 +116,7 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
     } else {
       target = { kind: 'main' }
     }
-    if (runInBackground && !prompt.trim()) {
+    if (background && !prompt.trim()) {
       setError('A background dragon needs a first quest: there is no terminal to type it in.')
       return
     }
@@ -147,11 +124,10 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
     try {
       await api.sessions.spawn({
         projectId: project.id,
-        agent,
         target,
         prompt: prompt.trim() || undefined,
         name: name.trim() || undefined,
-        background: runInBackground || undefined
+        background: background || undefined
       })
       onSummoned()
     } catch (err) {
@@ -179,20 +155,6 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
             ))}
           </select>
         </label>
-
-        <fieldset>
-          <legend>Which kind of dragon?</legend>
-          <div className="agent-row">
-            {agents.map((a) => (
-              <label key={a.id} className={'agent-choice' + (agent === a.id ? ' selected' : '') + (a.path ? '' : ' unavailable')} title={a.path ?? a.note}>
-                <input type="radio" checked={agent === a.id} disabled={!a.path} onChange={() => setAgent(a.id)} />
-                <b>{a.label}</b>
-                {!a.path ? <span className="hint block">Not installed</span> : null}
-              </label>
-            ))}
-          </div>
-          {agents.find((a) => a.id === agent)?.note ? <span className="hint block">{agents.find((a) => a.id === agent)?.note}</span> : null}
-        </fieldset>
 
         <fieldset>
           <legend>Where does it roost?</legend>
@@ -255,7 +217,7 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
                 <b>Name it myself</b>
               </span>
               {naming === 'manual' ? (
-                <input type="text" placeholder="branch name, e.g. 42-add-login or PLAT-123-add-login" value={branch} onChange={(e) => setBranch(e.target.value)} autoFocus />
+                <input type="text" placeholder="branch name, e.g. 42-add-login" value={branch} onChange={(e) => setBranch(e.target.value)} autoFocus />
               ) : null}
             </label>
             <label className="radio">
@@ -293,19 +255,15 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
             rows={5}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder={runInBackground ? 'What should it do? A background dragon starts on this right away.' : 'Leave empty to start idle and type in the terminal.'}
+            placeholder={background ?'What should it do? A background dragon starts on this right away.' : 'Leave empty to start idle and type in the terminal.'}
           />
         </label>
 
         <label className="radio">
-          <input type="checkbox" checked={runInBackground} disabled={agent !== 'claude'} onChange={(e) => setBackground(e.target.checked)} />
+          <input type="checkbox" checked={background} onChange={(e) => setBackground(e.target.checked)} />
           <span>
             <b>Background</b> — keeps flying after Botalot quits
-            <span className="hint block">
-              {agent === 'claude'
-                ? 'Runs as a Claude Code background session (claude --bg). Click it to attach; Slay stops it, Bury removes it.'
-                : 'Only Claude Code dragons can run in the background.'}
-            </span>
+            <span className="hint block">Runs as a Claude Code background session (claude --bg). Click it to attach; Slay stops it, Bury removes it.</span>
           </span>
         </label>
 
