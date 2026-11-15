@@ -1,0 +1,16 @@
+{
+  "name": "paigelester-skills",
+  "owner": {
+    "name": "paigelester"
+  },
+  "metadata": {
+    "description": "Paige's software engineer brain: workflows, step skills, scripts and knowledge."
+  },
+  "plugins": [
+    {
+      "name": "factory",
+      "description": "The factory's skills, and the coding knowledge a repo's contract loads into every session.",
+      "source": "./"
+    }
+  ]
+}
