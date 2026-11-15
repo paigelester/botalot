@@ -38,14 +38,14 @@ function cost(usd: number): string {
   return usd > 0 ? `$${usd.toFixed(2)}` : ''
 }
 
-/** Every factory run, the ones that want something first: each step's time, weight, tools and sessions. */
+/** Every run, the ones that want something first: each step's time, weight, tools and sessions. */
 export function RunsPanel({ runs, projects, onClose }: Props) {
   const sorted = [...runs].sort((a, b) => Number(runNeedsYou(b)) - Number(runNeedsYou(a)) || Number(isOpenRun(b)) - Number(isOpenRun(a)) || b.startedAt - a.startedAt)
 
   return (
-    <aside className="waiting-panel runs-panel" aria-label="Factory runs">
+    <aside className="waiting-panel runs-panel" aria-label="Runs">
       <header>
-        <h2>Factory runs</h2>
+        <h2>Runs</h2>
         <span className="hint">Ctrl+Shift+R</span>
         <span className="spacer" />
         <button className="ghost" title="Close" onClick={onClose}>
@@ -53,7 +53,7 @@ export function RunsPanel({ runs, projects, onClose }: Props) {
         </button>
       </header>
       {sorted.length === 0 ? (
-        <p className="waiting-empty">No runs yet. Patrol starts one for each ready, agent-owned ticket, or run `factory start implement &lt;ticket&gt;` in a realm.</p>
+        <p className="waiting-empty">No runs yet. Patrol starts one for each ready, agent-owned ticket, or run `botalot start implement &lt;ticket&gt;` in a realm.</p>
       ) : (
         <ul>
           {sorted.map((run) => (
@@ -129,7 +129,7 @@ function RunRow({ run, project }: { run: RunView; project?: Project }) {
           </button>
         ) : null}
         {canCarryOn ? (
-          <button className="primary small" disabled={busy} onClick={() => void act(() => api.runs.carryOn(run.id))} title="Runs `factory next` for this run">
+          <button className="primary small" disabled={busy} onClick={() => void act(() => api.runs.carryOn(run.id))} title="Runs `botalot next` for this run">
             Carry on
           </button>
         ) : null}

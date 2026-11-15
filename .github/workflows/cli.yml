@@ -1,0 +1,19 @@
+# Called by ci.yml. The CLI's own checks and tests. It has no dependencies, so there is nothing to install.
+name: cli
+
+on:
+  workflow_call:
+
+jobs:
+  cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      # The tests commit in throwaway repos, which needs an identity.
+      - run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.test"
+      - run: npm run verify:cli

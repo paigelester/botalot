@@ -1,168 +1,129 @@
 # Botalot
 
-A fantasy-themed command view for running many Claude Code sessions at once.
-Every session is a dragon. Every project is a castle. Every git worktree is a
-small holding near its castle. Click a dragon to open its real terminal.
+A software factory for coding agents, in two parts:
 
-## Run it
+- **The CLI** (`botalot`): workflows, step skills and knowledge, and the driver that runs them. Light, with no dependencies. This is what a repo installs.
+- **The app** (`app/`): a fantasy command view on top, where every agent session is a dragon in your kingdom. Optional. See [app/README.md](app/README.md).
 
-    npm install
-    npm run dev        # hot-reloading development window
-    npm run build      # production bundle into out/
-    npm start          # run the production bundle
+Claude Code and GitHub Issues only.
 
-Requires Node 20+, git, and `claude` (Claude Code) on PATH. Windows is the primary target
-(ConPTY via node-pty); it should also run on macOS and Linux.
+| Layer | Folder | Holds | Rule |
+|---|---|---|---|
+| Workflows | `workflows/` | `implement` | Owns order, gates and loop limits. Declares what a repo must provide. |
+| Step skills | `skills/` | `build`, `review-code` | One job each. Never names the next step. |
+| Driver | `bin/`, `cli/` | The `botalot` command: runs workflows, verify, contract check, labels, run log | No judgment. Pass or fail. |
+| Knowledge | `knowledge/` | Fundamentals, stacks, review rubrics | How I write and judge code. Loaded into steps, never run. |
 
-## How it works
+`skills/` also holds skills that have no workflow yet and are followed by hand: `create-tickets`, `route-ticket`, `fix-pr`, `merge-pr`, `notify`, `factory-labels`, `setup-factory`, `using-skills` and `clear-replies`.
 
-- **Realms** are discovered from `~/.claude/projects` (every folder you have run
-  Claude Code in) and can be added or hidden in the Realms dialog.
-- **Summon dragon** spawns `claude` in a pseudo-terminal in the chosen folder.
-  Pick the castle (the repo folder as it is), an existing worktree, or a new one.
-  A new holding fetches origin and branches from the latest remote default branch
-  (falling back to local HEAD without a remote), in a sibling folder
-  `<repo>-worktrees/<name>`, configurable per realm. Name it from an open issue in
-  the realm's tracker (branch `<key>-<slug>`, issue text as the opening prompt),
-  type a name, or start a **draft** named after the dragon and let the
-  dragon file the issue and rename its own branch later; the map follows the
-  rename.
-- **Issue trackers** are chosen per realm in the Realms dialog: GitHub issues
-  (via the gh CLI; inferred automatically when origin is on github.com) or none.
-  The issue picker
-  filters the 100 most recently updated open issues as you type and can search
-  the tracker itself when more exist.
-- **State** comes from agent hooks. Claude sessions are started with
-  `--settings <generated file>` so the hooks apply only to dragons.
-  They post their events (SessionStart, UserPromptSubmit, PreToolUse,
-  PostToolUse, PermissionRequest, Stop, SessionEnd, notifications) to the
-  app on localhost. Claude Code's live session registry (`~/.claude/sessions`) is
-  a fallback when hooks are quiet, and if an agent sends no hooks at all the app
-  falls back to watching terminal output: output means working, silence means
-  idle, a y/n-style prompt means waiting.
-- **Dragons survive restarts.** Every dragon is recorded the moment it is
-  summoned (sessions.json in the app config folder) and kept current as its
-  branch or agent session id changes. Quitting the app stops the processes but
-  keeps the records, so on the next launch the dragons return faded and dormant.
-  Wake one and the agent resumes its own session in the same folder, with the
-  same conversation (`claude --resume`). Bury forgets it.
-- **Awaiting you.** The "awaiting you" pill in the top bar (or Ctrl+Shift+A) opens
-  a list of every waiting dragon, longest-waiting first, with what it needs. Type a
-  quick reply and press Enter to send it to the dragon's terminal, or Open it.
-  Background dragons have no terminal of the app's own, so they are answered by
-  opening them. The waiting count also shows as a badge on the taskbar icon, and
-  when a dragon starts waiting while the window is not focused, an OS notification
-  says so; clicking it opens that dragon.
-- **Factory runs.** The "runs" pill in the top bar (or Ctrl+Shift+R) opens every
-  run of the software factory's driver (the `factory` command from
-  `paigelester/skills`; see [The factory](#the-factory)), the ones that need you
-  first. Each run shows its ticket, where it is, and every step with its
-  duration, its weight (what it would have cost at API prices), the tools and
-  skills its agent used, and the checks it ran. Click a step's session to open
-  it as a dragon in the run's folder, resuming where the step left off
-  (`claude --resume`). **Carry on** runs `factory next` for a run that is
-  resting on you; **Stop** ends one. Botalot holds no run logic: it reads the
-  driver's run logs in `~/.factory/runs/`, so runs started from a terminal show
-  up too.
-- **Patrol.** Switch on Patrol for a realm in the Realms dialog and, every couple
-  of minutes while the app runs, it takes the oldest open tickets labelled both
-  `factory:ready` and `factory:agent-owned`, makes a holding named from each
-  ticket, and starts a factory run of the implement workflow there
-  (`factory start implement <ticket>`). The driver does the rest: it moves the
-  ticket to `factory:in-progress`, builds, verifies, reviews, opens the pull
-  request and moves the ticket to `factory:in-review`. A run that needs a
-  decision or access flags the ticket `factory:needs-you` itself and says why in
-  a comment. Patrol flags the ticket the same way when a run stops on a problem
-  or loses its driver, and when no run could be started at all twice in a row
-  (the realm has no passing `.factory/contract.json`, say); such a ticket loses
-  `factory:ready` until you label it again. At most N runs per realm at once
-  (default 1); a run resting on you doesn't hold a place. A run keeps going when
-  Botalot quits. What an agent may do unattended is set by the factory's step
-  skills and the realm's contract, not here. The ticket text becomes the agent's
-  instructions, so label only tickets you have read `factory:ready`. Labels are
-  read and changed with `gh`; patrol's memory lives in `patrol.json` in the
-  config folder.
-- **Pull requests.** In a realm whose tracker is GitHub, every holding with a
-  dragon shows its branch's pull request under the signpost: `PR #142` with a CI
-  dot (green passed, gold running, red failed, grey no checks), or `draft`,
-  `merged` or `closed`. Click it to open the PR in your browser. The app asks
-  `gh pr view <branch>` once a minute, one holding at a time, and again when a
-  dragon on that branch goes idle. Without `gh`, or logged out, holdings simply
-  show no sign.
-- **Stuck dragons.** The app flags a dragon as stuck when it has been working with
-  no hook event for 10 minutes (no terminal output, for agents without hooks), or
-  waiting on you for more than 15. It gets a red ring, the panel says why, and it
-  moves to the top of the awaiting-you list. It clears on the next sign of life.
-  Change the limits in `config.json` in the app's config folder:
-  `"stuck": { "workingQuietMinutes": 10, "waitingMinutes": 15 }`.
-- **Dragon states**: flying with fire = working; landed with a gold ring and
-  exclamation = waiting on you (permission prompt or question); curled asleep =
-  idle; faded and curled = dormant (from an earlier run, wake to resume); grey
-  with a gravestone = exited (wake to resume, or bury).
-- **Wild dragons** are Claude Code background sessions the app did not summon
-  (`claude --bg`, `/bg`, the `claude agents` view). The app polls
-  `claude agents --json --all` every few seconds and shows each one, with a green
-  italic name, in the realm whose folder holds its `cwd`, or at the camp in the
-  **unclaimed lands** when no realm does. Blocked sessions show the gold ring with
-  what they wait for. Clicking one runs `claude attach <id>` in the panel; closing
-  the panel closes only that client, and the session keeps running. Wild dragons
-  are never recorded, slain or woken by the app; Claude Code's supervisor owns them.
-- **Background dragons.** Tick **Background** when summoning a Claude dragon and the
-  app runs `claude --bg --name <dragon> "<quest>"` in the chosen folder instead of
-  a terminal of its own, so the dragon keeps working after Botalot quits. It is
-  tracked by the same poll as wild dragons, plus hooks: the background worker does
-  not inherit the app's environment, so its hook settings
-  (`dragon-hooks-background.json`) tell `hooks/notify.js` to read the app's current
-  port from the `hook-port` file in the config folder, and events are matched by
-  session id. Click it to attach; **Slay** runs `claude stop`, **Bury** runs
-  `claude rm`. On relaunch it comes back live. If its session is gone, it falls,
-  and waking it resumes the conversation in the app's own terminal.
+## How a run works
 
-## The factory
+The driver, not an agent, moves a run from step to step. It runs each skill step as a fresh headless Claude Code session, runs script steps itself, and checks every gate before the next step, so a step can't be skipped.
 
-Factory runs and patrol are driven by the software factory in
-[paigelester/skills](https://github.com/paigelester/skills): its workflows, step
-skills and knowledge, and the `factory` driver that runs them. Botalot starts the
-driver and shows what it logs; it needs `factory` on the PATH (`npm link` in a
-clone of that repo).
+```
+botalot start implement 12
 
-A realm can run a workflow only once it has a contract, `.factory/contract.json`,
-that passes `factory check`, and its GitHub repo has the factory's labels:
+claim     ticket must be factory:ready with an owner; moves it to in-progress; makes the branch
+build     agent-owned: a fresh agent builds it.  human-owned: the run waits for you (`botalot next`)
+verify    the driver runs the contract's checks and stamps a pass with the exact files it passed on
+review    reviews picked from the changed files by the contract's rules, each a fresh agent
+squash    the run's commits become one commit, with the repo's hooks running   (agent-owned)
+pr        refused unless a verify pass is on record for exactly what is pushed  (agent-owned)
+handoff   ticket moves to in-review, with the PR link
+```
 
-    factory check             # does this realm's contract pass?
-    factory labels --fix      # create the factory's labels on its GitHub repo
-    factory start implement 12    # start a run by hand; it shows in the runs panel
+A failed check or a `must` review finding goes back to build, up to the workflow's loop limit. Then the run stops, flags the ticket `factory:needs-you` and says why in a comment. Agents never merge.
 
-This repo is such a realm: its contract is `.factory/contract.json`, and the
-factory plugin is turned on for it in `.claude/settings.json`.
+## Use it in a repo
 
-## Pixel-art dragons
+1. **Install the CLI** as a dev dependency, pinned to a release:
 
-The dragon sprites in `src/renderer/public/assets/dragons/` were generated with
-PixelLab (base pose plus fly, roar, idle and sleep clips) and are tinted per realm
-at runtime. Replace or extend them by editing `manifest.json` there; each animation
-is a strip or a list of frame files. Delete the manifest to fall back to the vector
-placeholder dragon.
+   ```bash
+   npm install --save-dev github:paigelester/botalot#v1.1.0
+   ```
 
-## Demo
+   `npm install` then brings it to any machine or cloud agent that works on the repo, and `npx botalot` runs it. A repo with no `package.json` gets a small one for this.
 
-    npm run demo
+2. **Write the repo's contract**, `.factory/contract.json`. A workflow refuses to start unless the contract meets its needs:
 
-A self-contained show kingdom: five fictional realms are created as throwaway git
-repos with worktrees under your temp folder, the app runs with its own config so
-your real kingdom is untouched, and fake dragons (castles and
-holdings, every state including dormant) fill the map. Add `-- --shot=out.png` to
-capture a screenshot and exit.
+   ```json
+   {
+     "$schema": "https://raw.githubusercontent.com/paigelester/botalot/main/schemas/contract.schema.json",
+     "botalot": "1.1.0",
+     "stacks": ["typescript", "nextjs"],
+     "commands": {
+       "setup": ["npm install"],
+       "verify": ["npm run lint", "npm run typecheck", "npm test", "npm run build"],
+       "run": "npm run dev"
+     },
+     "workflows": ["implement"],
+     "reviews": [{ "paths": ["app/**"], "run": ["code"] }],
+     "limits": { "minutesPerRun": 60, "maxRuns": 2, "pauseAtQuotaPercent": 80 }
+   }
+   ```
 
-Other dev switches: `DRAGON_CLAUDE_BIN` overrides the `claude`
-binary, `DRAGON_SCREENSHOT=path.png` captures the window after a delay and quits,
-`DRAGON_DEMO=1` alone summons a few fake dragons into your real realms.
+   | Field | Means |
+   |---|---|
+   | `botalot` | The botalot version the repo targets. Its major.minor must match the installed one, so upgrading a repo is a deliberate step. |
+   | `stacks` | Which `knowledge/stacks/` files load for build and review. |
+   | `commands.setup` | Optional. Commands that get a fresh checkout ready for the checks, such as `npm install`. Run once when a run claims its ticket. |
+   | `commands.verify` | Every check a change must pass. Only the driver's run of them counts. |
+   | `workflows` | The workflows the repo turns on. |
+   | `reviews` | Which reviews a change gets, by the paths it touches. A file no rule covers gets the `code` review. |
+   | `limits` | Optional. Time per unattended run, runs at once, and the share of the 5-hour usage window at which unattended runs pause. |
+   | `allow` | Optional. Extra shell commands an agent may run without asking. |
+   | `mcp` | Optional. `true` lets agent steps load the machine's MCP servers. Off by default: they cost tokens on every step. |
+   | `defaultBranch` | Optional. The branch work starts from and PRs target. |
 
-## Layout
+3. **Check it and set up the labels:**
 
-    src/main       Electron main: sessions (pty), projects, git, hook server, registry watcher
-    src/preload    contextBridge API exposed as window.dragon
-    src/renderer   React UI; scene/ is the PixiJS kingdom, panel/ is the terminal side panel
-    src/shared     Types shared across processes
-    hooks/         notify.js, the Claude Code hook forwarder
-    scripts/       grouped by concern: demo/ (scripted kingdom + fake claude), skills/ (vendored-skill check)
+   ```bash
+   npx botalot check
+   npx botalot labels --fix
+   ```
+
+## Commands
+
+```
+botalot check [workflow]              Check this repo's contract
+botalot start <workflow> <ticket>     Start a run for a ticket
+botalot next [run]                    Carry on this repo's waiting run
+botalot status [--all] [--json]       Show open runs (or every run)
+botalot stop <run>                    End a run
+botalot verify                        Run the contract's checks on the code as it is now
+botalot labels [--fix] [--prune]      Compare the repo's labels with the factory's ten
+botalot knowledge                     Print the knowledge this repo's contract loads
+botalot list                          Show the workflows, reviews and stacks botalot has
+```
+
+## Run logs
+
+Every run writes to `~/.botalot/runs/` (set `BOTALOT_HOME` to move it):
+
+- `<run>.jsonl`: the run log. One JSON event per line, appended as things happen: each step's start and end, each agent's session id, duration, cost, tokens, tools and skills used, each check's exit code, each loop and wait. Every line carries the run, repo, ticket and workflow.
+- `<run>.json`: the run's state, which `botalot next` carries on from.
+- `<run>/`: each agent's prompt and answer, each check's full output, the review findings, the PR body.
+
+Reopen any agent step with `claude --resume <session id>`. The app's runs panel reads the same files.
+
+## Working on botalot
+
+```bash
+npm install          # repo tooling: commit hooks, commitlint
+npm run hooks        # turn the commit hooks on, once per clone
+npm run app:install  # the app's own dependencies
+
+npm run verify       # everything: the CLI's checks and tests, then the app's
+npm run verify:cli   # the CLI alone
+npm run dev          # run the app
+```
+
+- **A rule I keep repeating:** add it to the right file in `knowledge/`. See `knowledge/README.md`.
+- **A new stack:** add `knowledge/stacks/<name>.md`.
+- **A new review:** add `knowledge/rubrics/<name>.md` and a `skills/review-<name>/` step skill (`SKILL.md` plus `step.json`).
+- **A new skill:** add `skills/<name>/SKILL.md`. The frontmatter `name` must match the folder. Wrap the `description` in double quotes if it contains `: ` or ` #`.
+- **A new workflow:** add `workflows/<name>.json`. See `workflows/README.md`.
+
+The root `package.json` is the CLI's and must stay free of dependencies and of a `prepare` script: either would be installed or run in every repo that depends on botalot. Its `files` list is what those repos receive.
+
+A release is a version bump in `package.json` and a `v<version>` tag. A minor or major bump means every repo's contract has to be updated before its workflows run again.

@@ -5,7 +5,7 @@ import { configDir } from './config'
 import { githubComment, githubEnsureLabels, githubRelabel, githubWithLabels } from './github'
 import { LABEL, type PatrolMemory, type PatrolTracker } from './patrol'
 
-/** The labels patrol writes, created on GitHub when missing. Same colours as the factory's own (`factory labels`). */
+/** The labels patrol writes, created on GitHub when missing. Same colours as the CLI sets (`botalot labels`). */
 const GITHUB_LABELS = [
   { name: LABEL.ready, color: '0E8A16', description: 'Approved to build' },
   { name: LABEL.needsYou, color: 'D93F0B', description: 'The agent needs a decision or access; the reason is in the comment' }

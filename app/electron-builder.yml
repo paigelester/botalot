@@ -13,6 +13,18 @@ files:
 # Agent CLIs run hooks/notify.js with their own node, which can't read inside app.asar.
 asarUnpack:
   - hooks/**
+# The botalot CLI (driver, workflows, skills, knowledge), copied beside the app so it can start runs.
+extraResources:
+  - from: ..
+    to: cli
+    filter:
+      - package.json
+      - bin/**
+      - cli/**
+      - workflows/**
+      - skills/**
+      - knowledge/**
+      - schemas/**
 win:
   target:
     - target: portable

@@ -16,6 +16,7 @@ jobs:
       typecheck: ${{ steps.checks.outputs.typecheck }}
       test: ${{ steps.checks.outputs.test }}
       build: ${{ steps.checks.outputs.build }}
+      cli: ${{ steps.checks.outputs.cli }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,6 +44,11 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.build != 'false' }}
     uses: ./.github/workflows/build.yml
+
+  cli:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.cli != 'false' }}
+    uses: ./.github/workflows/cli.yml
 
   # Every push and pull request brings commits to lint, so this always runs.
   commitlint:

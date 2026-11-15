@@ -1,6 +1,6 @@
 # Botalot
 
-A fantasy command view over many coding-agent sessions: sessions are dragons, projects are castles.
+A software factory for coding agents (the CLI), with a fantasy command view on top (the app): sessions are dragons, projects are castles.
 
 ## Language
 
@@ -25,11 +25,11 @@ A realm's setting that picks up tickets labelled `factory:ready` and `factory:ag
 _Avoid_: Auto-pickup, dispatcher, routine
 
 **Run**:
-One pass of a factory workflow over a ticket, moved step by step by the factory's driver (the `factory` command), not by the app. Shown in the runs panel; each agent step of a run can be opened as a dragon.
+One pass of a workflow over a ticket, moved step by step by the driver, not by the app. Shown in the runs panel; each agent step of a run can be opened as a dragon.
 _Avoid_: Job, pipeline, quest
 
 **Driver**:
-The `factory` command from `paigelester/skills`. It runs a run's steps, checks its gates and writes its log; the app starts it and reads what it writes.
+The part of the `botalot` CLI that runs a run's steps, checks its gates and writes its log. The app starts it and reads what it writes.
 _Avoid_: Runner, orchestrator
 
 **Wild dragon**:

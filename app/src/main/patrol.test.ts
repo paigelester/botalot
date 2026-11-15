@@ -122,7 +122,7 @@ test('a ticket that cannot be started is tried again, then handed to a human', a
   started[1].fail('The contract does not pass:\n- .factory/contract.json is missing.')
   await settle()
   assert.deepEqual(tracker.find('5').labels, [LABEL.agent, LABEL.needsYou])
-  assert.match(tracker.comments[0].text, /could not start a factory run[\s\S]*contract\.json is missing[\s\S]*factory:ready again/)
+  assert.match(tracker.comments[0].text, /could not start a run[\s\S]*contract\.json is missing[\s\S]*factory:ready again/)
 
   await patrol.tick()
   assert.equal(started.length, 2, 'patrol leaves it alone until it is ready again')
@@ -135,7 +135,7 @@ test('a run that fell over is flagged on its ticket once', async () => {
   await patrol.tick()
   assert.ok(tracker.find('4').labels.includes(LABEL.needsYou))
   assert.equal(tracker.comments.length, 1)
-  assert.match(tracker.comments[0].text, /repo-4-x` lost its driver at the "verify" step[\s\S]*factory next repo-4-x/)
+  assert.match(tracker.comments[0].text, /repo-4-x` lost its driver at the "verify" step[\s\S]*botalot next repo-4-x/)
 })
 
 test('patrol ignores other realms, human-owned runs, and realms with patrol off', async () => {

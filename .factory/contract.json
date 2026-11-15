@@ -1,12 +1,13 @@
 {
-  "$schema": "https://raw.githubusercontent.com/paigelester/skills/master/schemas/contract.schema.json",
-  "factory": "1.0.0",
+  "$schema": "https://raw.githubusercontent.com/paigelester/botalot/main/schemas/contract.schema.json",
+  "botalot": "1.1.0",
   "stacks": [
     "typescript"
   ],
   "commands": {
     "setup": [
-      "npm install"
+      "npm install",
+      "npm run app:install"
     ],
     "verify": [
       "npm run verify"

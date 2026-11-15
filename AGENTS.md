@@ -5,24 +5,24 @@ If a step can be a script with a pass/fail exit code, it is one. Run the script 
 Where scripts live:
 
 - A script used by one of this repo's own skills lives inside that skill: `.claude/skills/<skill>/scripts/`.
-- Any other script goes in `scripts/<concern>/` (e.g. `scripts/demo/`, `scripts/ci/`). No loose files directly in `scripts/`.
+- Any other script goes in `scripts/<concern>/` (e.g. `scripts/ci/`), or `app/scripts/<concern>/` when it is the app's (e.g. `app/scripts/demo/`). No loose files directly in `scripts/`.
 - Every repo-level script is run through an npm script in `package.json`.
 - Never add or change files in vendored skills (below).
 
 ## Verifying work
 
-`npm run verify` runs every deterministic check. Exit 0 = the work passes. New checks are added to this script, not run separately.
+`npm run verify` runs every deterministic check: the CLI's (`npm run verify:cli`), then the app's (`npm run verify:app`). Exit 0 = the work passes. New checks are added to this script, not run separately.
 
-- Unit tests are `*.test.ts` files beside the code, run by Node's own test runner on the TypeScript as-is (`npm test`). Node resolves imports itself, so a tested module may import only with explicit `.ts` extensions, and nothing from `electron` or `node-pty`: keep logic worth testing in such a module. Node only strips types, so such modules also avoid `enum` and constructor parameter properties.
+- The app's unit tests are `*.test.ts` files beside the code in `app/src/`, run by Node's own test runner on the TypeScript as-is. The CLI's tests are `tests/*.test.mjs`, run against a real git repo with a fake GitHub and a fake agent. Node resolves imports itself, so a tested module may import only with explicit `.ts` extensions, and nothing from `electron` or `node-pty`: keep logic worth testing in such a module. Node only strips types, so such modules also avoid `enum` and constructor parameter properties.
 
 - Verifying is the last step of the work, before committing: run `npm run verify` and report its output. Work isn't finished, and isn't committed, until it passes.
 - `verify` is for agents only. CI doesn't call it. `.github/workflows/ci.yml` runs on pushes to `main` and when a pull request is opened, updated or reopened, and calls each check as a reusable workflow (`on: workflow_call`), skipping a check when none of its inputs changed.
-- A new check added to `verify` also needs its own reusable workflow called from `ci.yml`, and its inputs listed in `scripts/ci/changed-checks.cjs`. Preview which checks a change runs: `npm run ci:changes -- <base> <head>`.
+- A new check added to `verify` also needs its own reusable workflow called from `ci.yml`, and its inputs listed in `scripts/ci/changed-checks.cjs` (app paths start with `app/`). Preview which checks a change runs: `npm run ci:changes -- <base> <head>`.
 - The Node major version is pinned in `.nvmrc`, and CI reads it from there.
 
 ## Packaging
 
-`npm run dist` builds and packages a portable Windows exe into `dist/` (config: `electron-builder.yml`). The `build` workflow uploads it as the `botalot-windows` artifact.
+`npm run dist` builds and packages a portable Windows exe into `app/dist/` (config: `app/electron-builder.yml`). The CLI is copied beside the app, so the exe can start runs with no Node installed. The `build` workflow uploads it as the `botalot-windows` artifact.
 
 - Shells started by VS Code set `ELECTRON_RUN_AS_NODE=1`, which makes any Electron exe exit at once. Clear it before launching the app from such a shell.
 
@@ -55,13 +55,13 @@ Skills in `.agents/skills/` (linked into `.claude/skills/`) come from `mattpococ
 
 - Update: `npm run skills:update`
 
-## Factory
+## The CLI and the app
 
-This repo runs the software factory from `paigelester/skills`, installed as the `factory` Claude Code plugin (turned on in `.claude/settings.json`), not vendored. Its contract with the factory is `.factory/contract.json`: the stacks whose knowledge loads, the checks every change must pass, and which reviews a change gets.
+This repo is two things. The root is the botalot CLI: the driver (`bin/`, `cli/`), workflows, step skills and knowledge, with its tests in `tests/`. `app/` is the Electron app, with its own `package.json`.
 
-- To implement a ticket, start its run with `factory start implement <ticket>` rather than doing the steps by hand. `factory next` carries a waiting run on.
-- The contract's `commands.verify` is `npm run verify`, so a check added there is picked up by factory runs too.
-- Change a factory skill, workflow or the driver in `paigelester/skills`, never here. Botalot only starts the driver and reads its run logs (`src/main/runs.ts`, `src/shared/runs.ts`).
+- The root `package.json` must stay free of dependencies and of a `prepare` script: either would be installed or run in every repo that depends on botalot. Repo tooling goes in its `devDependencies`; anything the app needs goes in `app/package.json`.
+- The CLI is plain Node (`.mjs`, no build step, no dependencies). The app only starts the CLI and reads its run logs (`app/src/main/runs.ts`, `app/src/shared/runs.ts`); run logic never goes in the app.
+- This repo is also a realm that runs its own workflows. Its contract is `.factory/contract.json`. To implement a ticket, start its run with `node bin/botalot.mjs start implement <ticket>` rather than doing the steps by hand; `node bin/botalot.mjs next` carries a waiting run on.
 
 ## Agent skills
 

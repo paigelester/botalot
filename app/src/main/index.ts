@@ -195,9 +195,9 @@ app.whenReady().then(async () => {
   // The demo's realms are fictional: no GitHub to ask.
   if (!process.env.DRAGON_DEMO && !process.env.DRAGON_DEMO_PLAN) prs.start()
 
-  // Factory runs. The demo kingdom is fictional, so it shows runs only from a runs folder made for it (FACTORY_HOME).
+  // Factory runs. The demo kingdom is fictional, so it shows runs only from a runs folder made for it (BOTALOT_HOME).
   const demo = !!process.env.DRAGON_DEMO || !!process.env.DRAGON_DEMO_PLAN
-  if (!demo || process.env.FACTORY_HOME) {
+  if (!demo || process.env.BOTALOT_HOME) {
     runs.on('runs', (list) => send('runs:update', list))
     runs.start()
   }
@@ -212,11 +212,11 @@ app.whenReady().then(async () => {
         const holding = await addWorktree(p.path, issueBranch(issue), p.worktreeLayout)
         const since = Date.now()
         await new Promise<void>((resolve, reject) => {
-          startRun(holding.path, 'implement', Number(issue.key), (code, output) => {
+          startRun(p.path, holding.path, 'implement', Number(issue.key), (code, output) => {
             runs.poll()
             // Exit 1 with a run on record is a run that stopped, which patrol reads off the run. With none, nothing started.
             const started = runs.list().some((r) => r.ticket === Number(issue.key) && samePath(r.mainRepo, p.path) && r.startedAt >= since - 5000)
-            if (code === 1 && !started) reject(new Error(output || 'The factory driver exited without starting a run.'))
+            if (code === 1 && !started) reject(new Error(output || 'The driver exited without starting a run.'))
             else resolve()
           })
           setTimeout(() => runs.poll(), 2000)

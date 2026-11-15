@@ -1,5 +1,6 @@
-// Factory runs: watching the driver's runs folder, and starting, carrying on and stopping runs through the
-// `factory` command (paigelester/skills). Botalot holds no run logic of its own: the driver decides every step.
+// Runs: watching the driver's runs folder, and starting, carrying on and stopping runs through the botalot CLI
+// (bin/botalot.mjs at the repo root). The app holds no run logic of its own: the driver decides every step.
+import { app } from 'electron'
 import { execFile, spawn } from 'child_process'
 import { EventEmitter } from 'events'
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs'
@@ -13,12 +14,12 @@ const POLL_MS = 3000
 const MAX_RUNS = 60
 
 /** The driver's home: run logs, run state and the latest quota reading. The driver reads the same variable. */
-export function factoryHome(): string {
-  return process.env.FACTORY_HOME || join(homedir(), '.factory')
+export function botalotHome(): string {
+  return process.env.BOTALOT_HOME || join(homedir(), '.botalot')
 }
 
 function runsDir(): string {
-  return join(factoryHome(), 'runs')
+  return join(botalotHome(), 'runs')
 }
 
 function alive(pid: unknown): boolean {
@@ -100,15 +101,33 @@ export class RunsWatcher extends EventEmitter {
 }
 
 /**
- * Run the driver. It is started through the shell because on Windows `factory` is a .cmd shim, and detached
- * with its output in a file so a run keeps going when Botalot quits. `onExit` gets the exit code and the tail
- * of what it printed: exit 0 = done or waiting on the human's own step, 2 = it needs you, 1 = it could not run.
+ * The CLI to run for a repo. A repo that installs botalot pins its own version, and its contract expects that
+ * version, so its copy wins. Otherwise the one that ships with the app: beside the packaged app (electron-builder
+ * copies it there), or the repo root above app/ in development.
  */
-function driver(args: string[], cwd: string, onExit?: (code: number, output: string) => void): void {
+function cliFor(mainRepo?: string): string {
+  const own = mainRepo ? join(mainRepo, 'node_modules', 'botalot', 'bin', 'botalot.mjs') : ''
+  if (own && existsSync(own)) return own
+  return app.isPackaged ? join(process.resourcesPath, 'cli', 'bin', 'botalot.mjs') : join(app.getAppPath(), '..', 'bin', 'botalot.mjs')
+}
+
+/**
+ * Run the driver. The app's own executable runs the CLI as plain Node (ELECTRON_RUN_AS_NODE), so no separate
+ * Node install is needed, detached with its output in a file so a run keeps going when Botalot quits. `onExit`
+ * gets the exit code and the tail of what it printed: exit 0 = done or waiting on the human's own step,
+ * 2 = it needs you, 1 = it could not run.
+ */
+function driver(args: string[], cwd: string, mainRepo: string | undefined, onExit?: (code: number, output: string) => void): void {
   mkdirSync(runsDir(), { recursive: true })
   const outPath = join(runsDir(), `botalot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.log`)
   const out = openSync(outPath, 'a')
-  const child = spawn(['factory', ...args].join(' '), { cwd, shell: true, detached: true, windowsHide: true, stdio: ['ignore', out, out] })
+  const child = spawn(process.execPath, [cliFor(mainRepo), ...args], {
+    cwd,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    detached: true,
+    windowsHide: true,
+    stdio: ['ignore', out, out]
+  })
   const finish = (code: number): void => {
     let output = ''
     try {
@@ -119,7 +138,7 @@ function driver(args: string[], cwd: string, onExit?: (code: number, output: str
     onExit?.(code, output)
   }
   child.on('error', (err) => {
-    writeFileSync(outPath, `Could not start the factory driver: ${err.message}. Is \`factory\` on the PATH? (npm link in the skills repo)\n`)
+    writeFileSync(outPath, `Could not start the driver: ${err.message}\n`)
     finish(1)
   })
   child.on('exit', (code) => finish(code ?? 1))
@@ -127,14 +146,14 @@ function driver(args: string[], cwd: string, onExit?: (code: number, output: str
   child.unref()
 }
 
-/** Start a run of `workflow` for a ticket, working in `cwd` (a realm's main checkout or one of its holdings). */
-export function startRun(cwd: string, workflow: string, ticket: number, onExit?: (code: number, output: string) => void): void {
-  driver(['start', workflow, String(ticket)], cwd, onExit)
+/** Start a run of `workflow` for a ticket of the realm at `mainRepo`, working in `cwd` (its main checkout or one of its holdings). */
+export function startRun(mainRepo: string, cwd: string, workflow: string, ticket: number, onExit?: (code: number, output: string) => void): void {
+  driver(['start', workflow, String(ticket)], cwd, mainRepo, onExit)
 }
 
 /** Carry on a run that is resting: after an answer, the human's own step, a usage pause, or a dead driver. */
 export function continueRun(run: RunView, onExit?: (code: number, output: string) => void): void {
-  driver(['next', run.id], existsSync(run.cwd) ? run.cwd : homedir(), onExit)
+  driver(['next', run.id], existsSync(run.cwd) ? run.cwd : homedir(), run.mainRepo, onExit)
 }
 
 /** End a run: stop its driver (and the agent it is running) if one is alive, then mark the run stopped. */
@@ -149,7 +168,7 @@ export function stopRun(run: RunView, onExit?: (code: number, output: string) =>
   } catch {
     /* no state or no process: marking it stopped is all that is left */
   }
-  driver(['stop', run.id], homedir(), onExit)
+  driver(['stop', run.id], homedir(), run.mainRepo, onExit)
 }
 
 /**
@@ -159,9 +178,9 @@ export function stopRun(run: RunView, onExit?: (code: number, output: string) =>
 export function shareQuota(q: Quota): void {
   const window = (w?: { usedPercent: number; resetsAt: number }) => (w ? { usedPercent: Math.round(w.usedPercent), resetsAt: Math.round(w.resetsAt / 1000) } : undefined)
   try {
-    mkdirSync(factoryHome(), { recursive: true })
-    writeFileSync(join(factoryHome(), 'quota.json'), JSON.stringify({ fiveHour: window(q.fiveHour), sevenDay: window(q.sevenDay), readAt: new Date().toISOString() }, null, 2))
+    mkdirSync(botalotHome(), { recursive: true })
+    writeFileSync(join(botalotHome(), 'quota.json'), JSON.stringify({ fiveHour: window(q.fiveHour), sevenDay: window(q.sevenDay), readAt: new Date().toISOString() }, null, 2))
   } catch (err) {
-    console.warn('could not share the quota reading with the factory driver', err)
+    console.warn('could not share the quota reading with the driver', err)
   }
 }

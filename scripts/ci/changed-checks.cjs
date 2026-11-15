@@ -11,7 +11,8 @@ const shared = ['app/package.json', 'app/package-lock.json', '.nvmrc', '.github/
 const checks = {
   typecheck: ['app/src/', 'app/electron.vite.config.ts', 'app/tsconfig.json', '.github/workflows/typecheck.yml'],
   test: ['app/src/', 'app/hooks/', 'app/tsconfig.json', '.github/workflows/test.yml'],
-  build: ['app/src/', 'app/hooks/', 'app/electron.vite.config.ts', 'app/electron-builder.yml', 'app/tsconfig.json', '.github/workflows/build.yml']
+  build: ['app/src/', 'app/hooks/', 'app/electron.vite.config.ts', 'app/electron-builder.yml', 'app/tsconfig.json', '.github/workflows/build.yml'],
+  cli: ['bin/', 'cli/', 'workflows/', 'skills/', 'knowledge/', 'schemas/', 'tests/', 'package.json', '.github/workflows/cli.yml']
 }
 
 const matches = (file, entry) => (entry.endsWith('/') ? file.startsWith(entry) : file === entry)

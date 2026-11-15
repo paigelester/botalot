@@ -142,7 +142,7 @@ export interface SpawnRequest {
   name?: string
   /** Run as a background session (`claude --bg`) that keeps going after the app quits. Needs a prompt. */
   background?: boolean
-  /** Open an earlier Claude Code session by its id instead of starting a new one, e.g. a factory run's step. */
+  /** Open an earlier Claude Code session by its id instead of starting a new one, e.g. a run's step. */
   resume?: string
 }
 
@@ -192,9 +192,9 @@ export interface DragonApi {
     setBadge(count: number, png: string | null): void
   }
   runs: {
-    /** Every factory run the driver knows of, newest first. */
+    /** Every run the driver knows of, newest first. */
     list(): Promise<RunView[]>
-    /** Carry on a run that is resting (`factory next`). Resolves once the driver has been started. */
+    /** Carry on a run that is resting (`botalot next`). Resolves once the driver has been started. */
     carryOn(id: string): Promise<void>
     /** End a run, stopping its driver and the agent it is running. */
     stop(id: string): Promise<void>

@@ -1,5 +1,5 @@
-// Patrol: per realm, pick up tickets labelled factory:ready + factory:agent-owned and start a factory run of the
-// implement workflow for each. The run's driver (the `factory` command) does the work and moves the ticket's
+// Patrol: per realm, pick up tickets labelled factory:ready + factory:agent-owned and start a run of the
+// implement workflow for each. The run's driver (the `botalot` CLI) does the work and moves the ticket's
 // labels itself; patrol only chooses what to start, and tells a human when a run could not start or fell over.
 // Everything outside (trackers, runs, the driver) comes in through PatrolDeps, so this file is
 // testable with fakes: it imports only shared code, with explicit .ts extensions for Node's test runner.
@@ -41,7 +41,7 @@ export interface PatrolMemory {
 
 export interface PatrolDeps {
   projects(): Project[]
-  /** Every factory run the driver knows of, any realm. */
+  /** Every run the driver knows of, any realm. */
   runs(): RunView[]
   trackerFor(p: Project): PatrolTracker | null
   /**
@@ -99,7 +99,7 @@ export class Patrol {
       const why = run.status === 'stopped' ? `stopped${run.waitReason ? `: ${run.waitReason}` : ''}` : `lost its driver at the "${run.currentStep ?? 'first'}" step`
       // It loses factory:ready too (a run that stopped before claiming still has it), or patrol would start it again.
       await tracker.relabel(String(run.ticket), [LABEL.ready], [LABEL.needsYou])
-      await tracker.comment(String(run.ticket), `Botalot patrol: factory run \`${run.id}\` ${why}. Carry it on from Botalot's Runs panel, or with \`factory next ${run.id}\`.`)
+      await tracker.comment(String(run.ticket), `Botalot patrol: run \`${run.id}\` ${why}. Carry it on from Botalot's Runs panel, or with \`botalot next ${run.id}\`.`)
       this.deps.log(`patrol ${p.name}: run ${run.id} fell; flagged #${run.ticket}`)
     }
 
@@ -142,6 +142,6 @@ export class Patrol {
     if (n < MAX_ATTEMPTS) return
     this.deps.memory.setAttempts(key, 0)
     await tracker.relabel(issue.key, [LABEL.ready], [LABEL.needsYou])
-    await tracker.comment(issue.key, `Botalot patrol could not start a factory run for this ticket (${n} attempts):\n\n${why}\n\nFix the cause, then label it ${LABEL.ready} again.`)
+    await tracker.comment(issue.key, `Botalot patrol could not start a run for this ticket (${n} attempts):\n\n${why}\n\nFix the cause, then label it ${LABEL.ready} again.`)
   }
 }

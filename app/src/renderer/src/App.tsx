@@ -117,7 +117,7 @@ export function App() {
               setRunsOpen((o) => !o)
               setWaitingOpen(false)
             }}
-            title="Show factory runs (Ctrl+Shift+R)"
+            title="Show runs (Ctrl+Shift+R)"
           >
             {openRuns.length} run{openRuns.length === 1 ? '' : 's'}
             {runsNeedYou > 0 ? ', ' + runsNeedYou + ' need you' : ''}

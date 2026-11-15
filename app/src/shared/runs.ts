@@ -1,5 +1,5 @@
 /**
- * Factory runs, as the `factory` driver (paigelester/skills) writes them to its runs folder: a state file
+ * Runs, as the driver (the botalot CLI) writes them to its runs folder: a state file
  * (`<id>.json`) and a run log (`<id>.jsonl`, one JSON event per line). This turns the two into what the Runs
  * panel shows. Pure, so it is testable: imports nothing.
  */
