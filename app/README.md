@@ -91,7 +91,9 @@ Requires Node 20+, git, and `claude` (Claude Code) on PATH. Windows is the prima
   trigger of a workflow the realm's contract turns on, oldest first. A ticket
   labelled `factory:selected` with no owner gets a **route** run in the realm's
   main checkout; a ticket labelled `factory:ready` and `factory:agent-owned`
-  gets an **implement** run in a holding named from the ticket. The driver does
+  gets an **implement** run in a holding named from the ticket; a ticket in
+  review whose agent-made pull request has a failed check or unanswered feedback
+  gets a **fix-pr** run in the holding of the pull request's branch. The driver does
   the rest: routing posts the plan and the owner label and leaves the ticket for
   you to approve; implementing moves the ticket to `factory:in-progress`, builds,
   verifies, reviews, opens the pull request and moves it to `factory:in-review`.

@@ -68,6 +68,43 @@ export function planComment(output, owner, runId) {
   ].join("\n");
 }
 
+const quote = (text) => text.trim().split(/\r?\n/).map((l) => `> ${l}`).join("\n");
+
+/** What the fix agent is told to answer: every failing check, review thread and comment, each with an id. */
+export function prWorkBrief(pr, work) {
+  const lines = [`# What to answer`, ``, `Pull request ${pr.url} (#${pr.number}). Answer every item below, by its id.`];
+  for (const w of work) {
+    if (w.type === "check") lines.push(``, `## ${w.id}: the check "${w.name}" failed`, ``, w.url ? `Its page: ${w.url}` : `Find its log with \`gh pr checks ${pr.number}\`.`);
+    else if (w.type === "thread") {
+      lines.push(``, `## ${w.id}: a review thread on ${w.path || "the change"}${w.line ? `:${w.line}` : ""}`);
+      for (const c of w.comments) lines.push(``, `**${c.author}:**`, quote(c.body));
+    } else lines.push(``, `## ${w.id}: a comment on the pull request`, ``, `**${w.author}:**`, quote(w.body));
+  }
+  return lines.join("\n");
+}
+
+const VERDICT = { fixed: "Fixed", "push-back": "Not changed", "out-of-scope": "Out of scope", "nothing-to-do": "Nothing to do" };
+
+/** The reply botalot leaves on a review thread. */
+export function threadReply(item, commit, ticket) {
+  if (item.verdict === "fixed") return `Fixed in ${commit}. ${item.reply}`;
+  if (item.verdict === "out-of-scope") return `Out of scope for #${ticket}: ${item.reply}`;
+  return item.reply;
+}
+
+/** The comment a fix round leaves on its pull request: what it did about each item, and the checks it ran. */
+export function fixComment(state, commit) {
+  const lines = [`## Fix round`, ``, commit ? `${state.fix.summary ?? "Fixes pushed."} Pushed as ${commit}.` : `No code changed this round.`, ``];
+  for (const item of state.fix.items) {
+    const work = state.prWork.find((w) => w.id === item.id);
+    const what = work.type === "check" ? `Check \`${work.name}\`` : work.type === "thread" ? `Thread on ${work.path || "the change"}${work.line ? `:${work.line}` : ""}` : `Comment by ${work.author}`;
+    lines.push(`- ${what}: **${VERDICT[item.verdict] ?? item.verdict}.** ${item.reply}`);
+  }
+  if (commit && state.verified) lines.push(``, `### Verification`, ``, ...state.verified.results.map(checkLine));
+  lines.push(``, `Botalot run \`${state.id}\`.`);
+  return lines.join("\n");
+}
+
 /** The body of the PR an agent-owned run opens. */
 export function prBody(state) {
   const should = (state.reviewed?.findings ?? []).filter((f) => f.severity === "should");
@@ -103,12 +140,14 @@ export function summary(state) {
   const add = (...more) => lines.push(...more);
   if (state.status === "done") {
     if (state.plan) add(`Routed #${state.ticket}: ${state.plan.owner} (risk ${state.plan.risk}, solvability ${state.plan.solvability}).`, `Approve it with \`botalot approve ${state.ticket}\`.`);
+    if (state.note) add(state.note);
+    if (state.fix) add(`Answered ${state.fix.items.length} item(s) on the pull request${state.changed ? ", with a new commit" : ", with no code change"}.`);
     if (state.pr) add(`PR: ${state.pr}`);
     else if (state.owner === "human-owned") add(`Branch ${state.branch} passed every gate. It is ready for your PR.`);
     if (state.build?.criteria?.length) add("", criteriaTable(state.build.criteria));
-    if (state.verified) add("", "Verification:", ...state.verified.results.map(checkLine));
+    if (state.verified && state.changed !== false) add("", "Verification:", ...state.verified.results.map(checkLine));
     const should = (state.reviewed?.findings ?? []).filter((f) => f.severity === "should");
-    if (state.reviewed) add("", `Review (${state.reviewed.reviews.join(", ")}): 0 must, ${should.length} should`, ...should.map(findingLine));
+    if (state.reviewed && state.changed !== false) add("", `Review (${state.reviewed.reviews.join(", ")}): 0 must, ${should.length} should`, ...should.map(findingLine));
   } else if (state.wait) {
     add(state.wait.reason);
     if (state.wait.detail) add("", state.wait.detail);

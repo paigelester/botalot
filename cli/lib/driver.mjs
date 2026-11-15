@@ -10,13 +10,16 @@ import { matchesGlob } from "./glob.mjs";
 import * as g from "./git.mjs";
 import * as tickets from "./tickets.mjs";
 import { OPEN_STATUSES, allStates, isAlive, logEvent, newRunId, readQuota, runDir, saveState, writeQuota } from "./runs.mjs";
-import { findingLine, planComment, prBody, stepPrompt } from "./report.mjs";
+import { findingLine, fixComment, planComment, prBody, prWorkBrief, stepPrompt, threadReply } from "./report.mjs";
 
 const AGENT = "agent-owned";
 const HUMAN = "human-owned";
 
 /** Whether nobody is watching this run: everything but a run on a ticket the human is building themselves. */
 const unattended = (state) => state.owner !== HUMAN;
+
+/** How many fix rounds a pull request gets before the next one asks first. */
+const MAX_FIX_ROUNDS = 3;
 
 /** Start a run. Refuses when the contract is unmet or a limit says no. Returns the run's state when it rests. */
 export async function startRun({ cwd, workflow, ticket, owner, say = console.log }) {
@@ -106,6 +109,11 @@ async function advance(state, ctx) {
       state.stepIndex++;
       continue;
     }
+    if (step.when === "changed" && state.changed === false) {
+      logEvent(state, "step-skip", { step: step.id, why: "nothing changed this round" });
+      state.stepIndex++;
+      continue;
+    }
     if (step.human && step.human === state.owner) {
       if (!state.humanDone[step.id]) {
         const detail = state.rework ? `It did not pass "${state.rework.from}":\n\n${state.rework.detail}` : null;
@@ -134,12 +142,16 @@ async function advance(state, ctx) {
     }
     const seconds = Math.round((Date.now() - started) / 1000);
     state.activeSeconds += seconds;
-    const outcome = result.ok ? "passed" : result.pause ? "paused" : result.needsYou ? "needs-you" : result.stop ? "stopped" : "failed";
+    const outcome = result.ok || result.finish ? "passed" : result.pause ? "paused" : result.needsYou ? "needs-you" : result.stop ? "stopped" : "failed";
     logEvent(state, "step-end", { step: step.id, outcome, seconds, ...(result.log ?? {}) });
 
     if (result.ok) {
       state.rework = null;
       state.stepIndex++;
+    } else if (result.finish) {
+      // The step found there is nothing left for this run to do.
+      state.note = result.finish;
+      state.stepIndex = steps.length;
     } else if (result.pause) {
       rest(state, "paused-quota", { step: step.id, reason: result.pause });
     } else if (result.needsYou) {
@@ -268,7 +280,7 @@ async function agentStep(state, step, ctx, skillName, extra = "") {
 }
 
 async function skillStep(state, step, ctx) {
-  const result = await agentStep(state, step, ctx, step.skill);
+  const result = await agentStep(state, step, ctx, step.skill, state.brief ?? "");
   if (!result.ok) return result;
   return step.then ? SCRIPTS[step.then](state, step, ctx, result.output) : { ok: true };
 }
@@ -277,6 +289,16 @@ async function skillStep(state, step, ctx) {
 
 function slug(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
+}
+
+/** Run the contract's setup commands: a fresh worktree has no installed dependencies, so the checks would fail before they start. */
+async function runSetup(state, step, contract) {
+  for (const command of contract.commands?.setup ?? []) {
+    const r = await runShell(command, { cwd: state.repo, timeoutMs: 30 * 60 * 1000 });
+    logEvent(state, "setup", { step: step.id, command, exit: r.code, seconds: r.seconds });
+    if (r.code !== 0) return { stop: `The setup command "${command}" failed (exit ${r.code}):\n\n${r.output.slice(-2000).trim()}` };
+  }
+  return null;
 }
 
 const SCRIPTS = {
@@ -302,14 +324,8 @@ const SCRIPTS = {
     state.defaultBranch = base;
     state.base = g.git(repo, "merge-base", "HEAD", g.defaultRef(repo, contract));
 
-    // A fresh worktree has no installed dependencies, so the checks would fail before they start.
-    for (const command of contract.commands?.setup ?? []) {
-      const r = await runShell(command, { cwd: repo, timeoutMs: 30 * 60 * 1000 });
-      logEvent(state, "setup", { step: step.id, command, exit: r.code, seconds: r.seconds });
-      if (r.code !== 0) return { stop: `The setup command "${command}" failed (exit ${r.code}):
-
-${r.output.slice(-2000).trim()}` };
-    }
+    const failed = await runSetup(state, step, contract);
+    if (failed) return failed;
 
     if (ready) tickets.relabel(repo, ticket.number, ["factory:ready"], ["factory:in-progress"]);
     try {
@@ -345,6 +361,95 @@ ${r.output.slice(-2000).trim()}` };
     tickets.relabel(state.repo, state.ticket, [], [`factory:${owner}`]);
     state.plan = { owner, risk: output.risk, solvability: output.solvability };
     return { ok: true, log: state.plan };
+  },
+
+  /**
+   * Take a ticket's open pull request for a fix round: get onto its branch as it was pushed, and list what
+   * needs an answer (failing checks, review threads, comments). With nothing on the list, the run is done.
+   */
+  async "collect-pr"(state, step, { contract }) {
+    const { repo } = state;
+    const ticket = tickets.readTicket(repo, state.ticket);
+    if (ticket.state !== "OPEN") return { stop: `Ticket #${ticket.number} is closed.` };
+    state.owner = state.owner ?? ticket.owner;
+    const pr = tickets.prForTicket(repo, ticket.number);
+    if (!pr) return { stop: `Ticket #${ticket.number} has no open pull request.` };
+    if (pr.checks.pending) return { stop: `${pr.url} still has ${pr.checks.pending} check(s) running. Try again when they finish.` };
+    if (!g.isClean(repo)) return { stop: `The working tree has uncommitted changes. A fix round needs a clean tree to start from.` };
+
+    g.tryGit(repo, "fetch", "origin", pr.branch);
+    const pushed = `origin/${pr.branch}`;
+    if (g.currentBranch(repo) !== pr.branch) {
+      if (g.tryGit(repo, "rev-parse", "--verify", "--quiet", `refs/heads/${pr.branch}`).code === 0) g.git(repo, "checkout", pr.branch);
+      else g.git(repo, "checkout", "-b", pr.branch, pushed);
+    }
+    if (g.tryGit(repo, "merge", "--ff-only", pushed).code !== 0) return { stop: `The local branch ${pr.branch} and the pushed pull request have gone different ways. Make them match, then start again.` };
+    state.branch = pr.branch;
+    state.defaultBranch = g.defaultBranch(repo, contract);
+    state.base = g.git(repo, "merge-base", "HEAD", g.defaultRef(repo, contract));
+    state.roundBase = g.head(repo);
+    state.pr = pr.url;
+    state.prNumber = pr.number;
+
+    const feedback = tickets.prFeedback(repo, pr.number);
+    const work = [
+      ...pr.checks.failing.map((c, i) => ({ id: `check-${i + 1}`, type: "check", name: c.name, url: c.url })),
+      ...feedback.threads.map((t, i) => ({ id: `thread-${i + 1}`, type: "thread", ...t })),
+      ...feedback.comments.map((c, i) => ({ id: `comment-${i + 1}`, type: "comment", ...c })),
+    ];
+    const log = { pr: pr.url, checks: pr.checks.failing.length, threads: feedback.threads.length, comments: feedback.comments.length };
+    if (work.length === 0) return { finish: `${pr.url} has no failing check and nothing unanswered.`, log };
+
+    const rounds = allStates().filter((s) => s.workflow === state.workflow && s.prNumber === pr.number && (s.mainRepo ?? s.repo) === state.mainRepo && s.status === "done" && s.fixed).length;
+    if (rounds >= MAX_FIX_ROUNDS && !state.roundsAsked) {
+      state.roundsAsked = true;
+      return { needsYou: { kind: "decision", question: `${pr.url} has had ${rounds} fix rounds and still has ${work.length} item(s) to answer. Carry on with \`botalot next\` for another round, or take the pull request over.` } };
+    }
+
+    const failed = await runSetup(state, step, contract);
+    if (failed) return failed;
+    state.prWork = work;
+    state.brief = prWorkBrief(pr, work);
+    writeFileSync(join(runDir(state.id), "pr-work.json"), JSON.stringify(work, null, 2));
+    return { ok: true, log };
+  },
+
+  /**
+   * After the fix agent: every item must have an answer, and an item called fixed must come with a change.
+   * The work is saved as a commit; a round that changed nothing skips the gates that judge a change.
+   */
+  async "save-fix"(state, step, ctx, output) {
+    const answers = new Map((output.items ?? []).map((i) => [i.id, i]));
+    const missing = state.prWork.filter((w) => !answers.get(w.id)?.verdict || !answers.get(w.id)?.reply);
+    if (missing.length) return { ok: false, detail: `Every item needs a verdict and a reply. Missing: ${missing.map((w) => w.id).join(", ")}.` };
+    g.saveWork(state.repo, `chore: botalot work in progress (${state.id})`);
+    state.changed = g.headTree(state.repo) !== g.git(state.repo, "rev-parse", `${state.roundBase}^{tree}`);
+    const fixed = state.prWork.filter((w) => answers.get(w.id).verdict === "fixed");
+    if (fixed.length && !state.changed) return { ok: false, detail: `You called ${fixed.map((w) => w.id).join(", ")} fixed, but no file changed. Make the fix, or give a different verdict.` };
+    state.fix = { summary: output.summary, commitMessage: output.commitMessage, items: state.prWork.map((w) => ({ id: w.id, verdict: answers.get(w.id).verdict, reply: answers.get(w.id).reply })) };
+    return { ok: true, log: { changed: state.changed } };
+  },
+
+  /**
+   * Answer what the round took on: a reply on every review thread, and one comment on the pull request for
+   * the checks, the comments and the verify result. Each answer is marked, so the same item is not due again.
+   */
+  async "answer-pr"(state) {
+    const commit = state.changed ? g.head(state.repo).slice(0, 7) : null;
+    const answered = (state.answered ??= {});
+    for (const item of state.fix.items) {
+      const work = state.prWork.find((w) => w.id === item.id);
+      if (work.type !== "thread" || answered[item.id]) continue;
+      tickets.replyToThread(state.repo, state.prNumber, work.replyTo, threadReply(item, commit, state.ticket));
+      answered[item.id] = true;
+      saveState(state);
+    }
+    if (!answered.summary) {
+      tickets.commentOnPr(state.repo, state.prNumber, fixComment(state, commit));
+      answered.summary = true;
+    }
+    state.fixed = true;
+    return { ok: true, log: { answered: state.fix.items.length, commit } };
   },
 
   /** After the build agent: keep its answer for the PR, and save its work as a commit. */
@@ -410,7 +515,7 @@ ${r.output.slice(-2000).trim()}` };
     return { ok: false, detail, log };
   },
 
-  /** Turn the run's work-in-progress commits into one commit, written in the repo's style, with hooks running. */
+  /** Turn the run's (or the fix round's) work-in-progress commits into one commit, written in the repo's style, with hooks running. */
   async squash(state) {
     const { repo } = state;
     g.saveWork(repo, `chore: botalot work in progress (${state.id})`);
@@ -420,9 +525,11 @@ ${r.output.slice(-2000).trim()}` };
 
     const before = g.head(repo);
     const messageFile = join(runDir(state.id), "commit-message.txt");
-    const subject = (state.build?.commitMessage ?? "").split("\n")[0].trim() || `chore: work for #${state.ticket}`;
-    writeFileSync(messageFile, `${subject}\n\n${state.build?.summary ?? ""}\n\nCloses #${state.ticket}\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n`);
-    g.git(repo, "reset", "--soft", state.base);
+    const work = state.fix ?? state.build;
+    const subject = (work?.commitMessage ?? "").split("\n")[0].trim() || `chore: work for #${state.ticket}`;
+    // A fix round adds one commit on top of the pull request; the ticket is closed by the first commit, not this one.
+    writeFileSync(messageFile, `${subject}\n\n${work?.summary ?? ""}\n\n${state.roundBase ? "Refs" : "Closes"} #${state.ticket}\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n`);
+    g.git(repo, "reset", "--soft", state.roundBase ?? state.base);
     const commit = g.tryGit(repo, "commit", "-F", messageFile);
     if (commit.code !== 0) {
       g.git(repo, "reset", "--soft", before);

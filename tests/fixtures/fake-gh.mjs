@@ -44,11 +44,26 @@ if (area === "issue" && action === "view") {
   save();
 } else if (area === "repo" && action === "view") {
   console.log("paige");
-} else if (area === "pr" && action === "list") {
+} else if (area === "pr" && action === "list" && flag("--head")) {
   const pr = state.prs.find((p) => p.head === flag("--head"));
   if (pr) console.log(pr.url);
+} else if (area === "pr" && action === "list") {
+  console.log(JSON.stringify(state.prs.map((p) => ({ number: p.number, url: p.url, headRefName: p.head, body: p.body, statusCheckRollup: p.checks ?? [] }))));
+} else if (area === "pr" && action === "comment") {
+  (state.prs.find((p) => p.number === Number(target)).comments ??= []).push({ author: { login: "paige" }, authorAssociation: "OWNER", body: flag("--body") });
+  save();
+} else if (area === "api" && action === "graphql") {
+  // The one query the driver makes: a pull request's review threads and comments.
+  const number = Number(flagAll("-F").find((f) => f.startsWith("n=")).slice(2));
+  const pr = state.prs.find((p) => p.number === number);
+  console.log(JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: pr.threads ?? [] }, comments: { nodes: pr.comments ?? [] } } } } }));
+} else if (area === "api" && /\/pulls\/\d+\/comments\/\d+\/replies$/.test(action)) {
+  const [, number, id] = action.match(/\/pulls\/(\d+)\/comments\/(\d+)\/replies$/);
+  const thread = state.prs.find((p) => p.number === Number(number)).threads.find((t) => t.comments.nodes[0].databaseId === Number(id));
+  thread.comments.nodes.push({ databaseId: Date.now(), author: { login: "paige" }, body: flag("-f").replace(/^body=/, "") });
+  save();
 } else if (area === "pr" && action === "create") {
-  const pr = { title: flag("--title"), body: readFileSync(flag("--body-file"), "utf8"), base: flag("--base"), head: flag("--head"), url: `https://example.test/pull/${state.prs.length + 1}` };
+  const pr = { number: state.prs.length + 1, title: flag("--title"), body: readFileSync(flag("--body-file"), "utf8"), base: flag("--base"), head: flag("--head"), url: `https://example.test/pull/${state.prs.length + 1}` };
   state.prs.push(pr);
   save();
   console.log(pr.url);

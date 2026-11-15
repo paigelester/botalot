@@ -1,43 +1,41 @@
 ---
 name: fix-pr
-description: Take an agent-authored factory PR from failing or commented to green with every review thread answered (fix, verify, push, reply, repeat). Use when a factory PR's checks fail, when it gets review comments, or when asked to fix, update or address feedback on a PR.
+description: Answer everything open on one factory pull request (failing checks, review threads, comments) by fixing it in the working tree or saying why not. Use as the fix step of a botalot fix-pr run, or when asked to fix or address feedback on a pull request whose branch is already checked out.
 ---
 
 # Fix a PR
 
-You are the author of the PR, working the two rework loops of the PR workflow: CI fails → fix + push, and review comments → fix + push. You end with every check green and every review thread answered, ready for the `merge-pr` skill, or with the ticket flagged and a question asked.
-
-Labels are in the `factory-labels` skill and pings are in the `notify` skill. Read both first.
-
-**Inputs:** the PR number. The ticket is the issue its body closes (`Closes #<n>`).
+You are the author of the pull request. You are given a list of items: failing checks, review threads and comments. You end with every item answered, and every fix made in the working tree, or with one question for the human. You don't commit, push, reply on GitHub or resolve threads: the driver does that with your answers.
 
 ## Steps
 
-1. **Read.** Read the PR (`gh pr view <pr> --json number,headRefName,body,reviews,statusCheckRollup`), its linked ticket with its comments, and the ticket's acceptance criteria. Check out the PR's branch at its latest commit. Done when you have the branch checked out and the criteria listed.
-2. **Collect the work.** Wait for checks to finish (`gh pr checks <pr> --watch`). For each failing check, read its log and write the failure in one line. List every unresolved review thread (command below) and every review body that asks for a change, with its author. Done when you have one list holding every failing check and every unresolved thread. An empty list means you are done: go to step 6.
-3. **Sort each item.** Each item is one of:
-   - **fix**: in the ticket's scope, and you agree it's wrong.
-   - **push back**: you disagree, and can say why in one line from the ticket, the code or the repo's rules.
-   - **out of scope**: it asks for work the ticket doesn't cover. Answer it with a proposal to file a follow-up ticket (with the `create-tickets` skill), and don't build it.
-   - **decision**: it needs something only a human can settle. Go to **Stop and ask**.
-   Done when every item has one of the four.
-4. **Fix.** Make the smallest change that resolves each **fix** item, with a test where the item is a bug. Run the repo's checks (`botalot verify`, which runs the contract's `commands.verify`) until it exits 0. Commit in the repo's commit style and push. Done when the check exits 0 on your pushed commit.
-5. **Answer.** Reply on every thread: for **fix**, the commit that fixed it; for **push back** and **out of scope**, your one-line reason. Resolve the threads you fixed that an agent opened; leave threads a human opened for that human to resolve. Then go back to step 2. Done when every thread from step 2 has your reply.
-6. **Hand off.** Comment on the PR: what changed since the last round, and the check command's result. Then run the `merge-pr` skill on the PR. Done when the comment is posted and `merge-pr` has run.
+1. **Understand.** Read the ticket's acceptance criteria and the change so far (`git diff` against the commit you were given). For each failing check, read its log (`gh run view <run-id> --log-failed`, with the run id from the check's page address) and write the failure in one line. Done when you can say what every item asks for.
+2. **Sort each item.** Each item gets one verdict:
+   - `fixed`: it is in the ticket's scope and it is right. You will change the code.
+   - `push-back`: you disagree, and can say why in one line from the ticket, the code or the repo's rules.
+   - `out-of-scope`: it asks for work the ticket doesn't cover. Say so and suggest a follow-up ticket. Don't build it.
+   - `nothing-to-do`: it asks for nothing, such as a thank you, or a check that failed for a reason outside the code and passes when run again.
+   An item only a human can settle is not a verdict: stop and ask.
+   Done when every item has one verdict.
+3. **Fix.** Make the smallest change that resolves each `fixed` item, following the knowledge you were given and the repo's rules. Add a test where the item is a bug. Keep every acceptance criterion met. Done when every `fixed` item has code that resolves it.
+4. **Check your own work.** Run the checks you were told the driver runs, and fix what fails. The driver runs them again and only its result counts. Done when they pass, or you have fixed what you can.
+5. **Answer.** Report in the required shape. Done when every item id appears once with its verdict and reply.
 
-After 3 rounds of steps 2 to 5 with items still left, go to **Stop and ask**.
+When you are given **Rework**, an earlier attempt failed a gate. Fix exactly what it lists and answer the same way, with every item again.
+
+## Answer
+
+- `status`: `done`, or `needs-human` when you stopped to ask.
+- `summary`: what this round changed and why, in one or two sentences. Empty when nothing changed.
+- `commitMessage`: one line in the repo's commit style for this round's fixes. Leave it out when nothing changed.
+- `items`: one entry for every item you were given, with its `id`, its `verdict`, and a `reply`: one or two sentences to the person who raised it, saying what you changed or why you didn't. Write the reply to stand alone; the driver adds the commit.
+- `kind` and `question`: only with `needs-human`.
 
 ## Stop and ask
 
-Push what you have, leave the ticket at `factory:in-review`, and use the `notify` skill with event `decision` (one question, with your recommended answer) or `blocked` (a secret, service or permission you lack, named exactly). Then end with a one-line summary of where the PR stands.
+Stop as soon as an item needs something only a human has, and answer `needs-human`:
 
-## Commands (GitHub)
+- `kind: decision`: two reviewers disagree, a comment changes what the ticket asks for, or a trade-off nobody has settled. Ask one question and give your recommended answer.
+- `kind: blocked`: a secret, a service, a permission, or a command you aren't allowed to run. Name exactly what is missing.
 
-```bash
-gh pr checks <pr> --watch                                   # wait for checks; non-zero exit if any failed
-gh run view <run-id> --log-failed                           # failing steps' logs
-gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved comments(first:20){nodes{databaseId author{login} path line body}}}}}}}' \
-  -F o={owner} -F r={repo} -F n=<pr>                        # review threads
-gh api repos/{owner}/{repo}/pulls/<pr>/comments/<comment-id>/replies -f body="..."   # reply on a thread
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=<thread-id>   # resolve a thread
-```
+Leave the work you have done in the working tree.

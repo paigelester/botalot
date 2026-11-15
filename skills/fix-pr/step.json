@@ -1,0 +1,30 @@
+{
+  "edits": true,
+  "knowledge": ["fundamentals", "stacks"],
+  "tools": ["Read", "Glob", "Grep", "Edit", "Write"],
+  "bash": ["git status", "git status *", "git diff", "git diff *", "git log *", "git show *", "gh issue view *", "gh pr view *", "gh pr checks *", "gh pr diff *", "gh run view *"],
+  "verifyCommands": true,
+  "output": {
+    "type": "object",
+    "properties": {
+      "status": { "type": "string", "enum": ["done", "needs-human"] },
+      "summary": { "type": "string" },
+      "commitMessage": { "type": "string" },
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "verdict": { "type": "string", "enum": ["fixed", "push-back", "out-of-scope", "nothing-to-do"] },
+            "reply": { "type": "string" }
+          },
+          "required": ["id", "verdict", "reply"]
+        }
+      },
+      "kind": { "type": "string", "enum": ["decision", "blocked"] },
+      "question": { "type": "string" }
+    },
+    "required": ["status"]
+  }
+}

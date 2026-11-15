@@ -1,0 +1,17 @@
+{
+  "name": "fix-pr",
+  "description": "Take an agent's open pull request from failing checks or unanswered review feedback to fixed, verified, pushed and answered. Merging stays with the human.",
+  "kind": "work",
+  "where": "holding",
+  "trigger": { "labels": ["factory:in-review", "factory:agent-owned"], "pr": "needs-work" },
+  "needs": ["commands.verify"],
+  "steps": [
+    { "id": "collect", "script": "collect-pr" },
+    { "id": "fix", "skill": "fix-pr", "then": "save-fix", "onFail": "fix", "maxLoops": 2 },
+    { "id": "verify", "script": "verify", "when": "changed", "onFail": "fix", "maxLoops": 5 },
+    { "id": "review", "script": "reviews", "when": "changed", "onFail": "fix", "maxLoops": 3 },
+    { "id": "squash", "script": "squash", "when": "changed", "onFail": "fix", "maxLoops": 2 },
+    { "id": "push", "script": "open-pr", "when": "changed", "maxLoops": 2 },
+    { "id": "answer", "script": "answer-pr" }
+  ]
+}

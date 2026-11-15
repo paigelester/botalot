@@ -30,6 +30,8 @@ export interface Due extends BoardTicket {
   kind: 'work' | 'planning'
   /** holding: a worktree of its own. main: the realm's main checkout. */
   where: 'holding' | 'main'
+  /** The branch the run belongs on, when it already exists: a fix round on an open pull request. */
+  branch?: string
 }
 
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {})
@@ -63,7 +65,7 @@ export function parseDue(json: unknown): Due[] {
     const t = ticket(raw)
     const d = obj(raw)
     if (!t || typeof d.workflow !== 'string') continue
-    out.push({ ...t, workflow: d.workflow, kind: d.kind === 'planning' ? 'planning' : 'work', where: d.where === 'main' ? 'main' : 'holding' })
+    out.push({ ...t, workflow: d.workflow, kind: d.kind === 'planning' ? 'planning' : 'work', where: d.where === 'main' ? 'main' : 'holding', ...(typeof d.branch === 'string' && d.branch ? { branch: d.branch } : {}) })
   }
   return out
 }

@@ -76,6 +76,71 @@ export function prForBranch(repo, branch) {
   return result.code === 0 && result.stdout.trim() ? result.stdout.trim() : null;
 }
 
+/** Ends everything botalot writes on a pull request, so its own answers are never read as new feedback. */
+export const MARK = "<!-- botalot -->";
+
+const FAILED = ["FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"];
+
+/** A pull request's checks as GitHub rolls them up: the ones that failed, and how many are still running. */
+function readChecks(rollup) {
+  const failing = [];
+  let pending = 0;
+  for (const c of rollup ?? []) {
+    // A check run has status and conclusion; an older commit status has only state.
+    const result = c.conclusion || c.state || "";
+    const running = c.status ? c.status !== "COMPLETED" : ["PENDING", "EXPECTED"].includes(result);
+    if (running) pending++;
+    else if (FAILED.includes(result)) failing.push({ name: c.name ?? c.context ?? "check", url: c.detailsUrl ?? c.targetUrl ?? "" });
+  }
+  return { failing, pending };
+}
+
+/** Every open pull request, with its branch, the tickets its body closes, and its checks. */
+export function listPrs(repo) {
+  const json = call(repo, "pr", "list", "--state", "open", "--limit", "100", "--json", "number,url,headRefName,body,statusCheckRollup");
+  return JSON.parse(json).map((pr) => ({
+    number: pr.number,
+    url: pr.url,
+    branch: pr.headRefName,
+    closes: [...(pr.body ?? "").matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi)].map((m) => Number(m[1])),
+    checks: readChecks(pr.statusCheckRollup),
+  }));
+}
+
+/** The open pull request for a ticket: the one whose body closes it, else the one on the ticket's branch. */
+export function prForTicket(repo, number, prs = listPrs(repo)) {
+  return prs.find((pr) => pr.closes.includes(number)) ?? prs.find((pr) => pr.branch.startsWith(`${number}-`)) ?? null;
+}
+
+const FEEDBACK_QUERY =
+  "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){" +
+  "reviewThreads(first:100){nodes{isResolved comments(first:50){nodes{databaseId author{login} path line body}}}} " +
+  "comments(last:50){nodes{author{login} authorAssociation body}}}}}";
+
+/**
+ * What on a pull request still needs an answer.
+ *   threads    review threads that are not resolved and whose last word is not botalot's
+ *   comments   comments on the pull request itself, by someone who can write to the repo, since botalot last answered
+ */
+export function prFeedback(repo, number) {
+  const json = call(repo, "api", "graphql", "-f", `query=${FEEDBACK_QUERY}`, "-F", "o={owner}", "-F", "r={repo}", "-F", `n=${number}`);
+  const pr = JSON.parse(json).data.repository.pullRequest;
+  const said = (c) => ({ author: c.author?.login ?? "unknown", body: c.body ?? "" });
+  const threads = [];
+  for (const t of pr.reviewThreads.nodes) {
+    const comments = t.comments.nodes;
+    if (t.isResolved || comments.length === 0 || comments.at(-1).body.includes(MARK)) continue;
+    threads.push({ replyTo: comments[0].databaseId, path: comments[0].path ?? "", line: comments[0].line ?? null, comments: comments.map(said) });
+  }
+  const all = pr.comments.nodes;
+  const lastAnswer = all.map((c) => c.body.includes(MARK)).lastIndexOf(true);
+  const comments = all.slice(lastAnswer + 1).filter((c) => ["OWNER", "MEMBER", "COLLABORATOR"].includes(c.authorAssociation)).map(said);
+  return { threads, comments };
+}
+
+export const replyToThread = (repo, pr, commentId, body) => call(repo, "api", `repos/{owner}/{repo}/pulls/${pr}/comments/${commentId}/replies`, "-f", `body=${body}\n\n${MARK}`);
+export const commentOnPr = (repo, pr, body) => call(repo, "pr", "comment", String(pr), "--body", `${body}\n\n${MARK}`);
+
 /**
  * Compare the repo's labels with the ten the factory uses. With `fix`, create or correct them.
  * With `prune`, also delete the labels retired in the cut from 21 to 10. Returns what it found and did.

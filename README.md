@@ -9,12 +9,12 @@ Claude Code and GitHub Issues only.
 
 | Layer | Folder | Holds | Rule |
 |---|---|---|---|
-| Workflows | `workflows/` | `implement`, `route` | Owns order, gates and loop limits. Declares what a repo must provide. |
-| Step skills | `skills/` | `build`, `review-code`, `route` | One job each. Never names the next step. |
+| Workflows | `workflows/` | `implement`, `route`, `fix-pr` | Owns order, gates and loop limits. Declares what a repo must provide. |
+| Step skills | `skills/` | `build`, `review-code`, `route`, `fix-pr` | One job each. Never names the next step. |
 | Driver | `bin/`, `cli/` | The `botalot` command: runs workflows, verify, contract check, labels, run log | No judgment. Pass or fail. |
 | Knowledge | `knowledge/` | Fundamentals, stacks, review rubrics | How I write and judge code. Loaded into steps, never run. |
 
-`skills/` also holds skills that have no workflow yet and are followed by hand: `create-tickets`, `fix-pr`, `merge-pr`, `notify`, `factory-labels`, `setup-factory`, `using-skills` and `clear-replies`.
+`skills/` also holds skills that have no workflow yet and are followed by hand: `create-tickets`, `merge-pr`, `notify`, `factory-labels`, `setup-factory`, `using-skills` and `clear-replies`.
 
 ## How a run works
 
@@ -34,6 +34,24 @@ handoff   ticket moves to in-review, with the PR link
 
 A failed check or a `must` review finding goes back to build, up to the workflow's loop limit. Then the run stops, flags the ticket `factory:needs-you` and says why in a comment. Agents never merge.
 
+## Fixing a pull request
+
+Once a pull request is open, `fix-pr` works it. A round takes on every failing check, every review thread whose last word isn't botalot's, and every comment on the pull request since botalot last answered.
+
+```
+botalot start fix-pr 12
+
+collect   finds the ticket's open PR, gets onto its branch as pushed, lists what needs an answer
+fix       a fresh agent gives every item a verdict (fixed, push-back, out-of-scope, nothing-to-do) and makes the fixes
+verify    as in implement                                       (skipped when no code changed)
+review    as in implement                                       (skipped when no code changed)
+squash    the round's work becomes one new commit on top of the PR  (skipped when no code changed)
+push      refused unless a verify pass is on record for exactly what is pushed
+answer    a reply on every review thread, and one comment on the PR with what the round did
+```
+
+The driver holds the agent to its word: every item needs an answer, and `fixed` needs a changed file. Threads are answered, never resolved: that is yours. After three rounds on one pull request the next one asks first. The ticket stays `factory:in-review`, and merging stays with you.
+
 ## Planning, and the board
 
 Not every workflow changes code. A workflow's `kind` is `work` or `planning`, and each can name the labels that make it due:
@@ -44,6 +62,8 @@ factory:selected, no owner        route is due: an agent judges risk and solvabi
 selected + owner                  on your board, to approve:  botalot approve 12   (selected becomes ready)
 factory:ready + agent-owned       implement is due
 factory:ready + human-owned       on your board, yours to build:  botalot start implement 12
+in-review + agent-owned           fix-pr is due when its PR has a failed check or something unanswered,
+                                  and no check still running
 ```
 
 `botalot due` lists the runs that should be started; the app's patrol starts them. `botalot board` lists the tickets waiting on you.
@@ -76,7 +96,7 @@ factory:ready + human-owned       on your board, yours to build:  botalot start 
        "verify": ["npm run lint", "npm run typecheck", "npm test", "npm run build"],
        "run": "npm run dev"
      },
-     "workflows": ["implement", "route"],
+     "workflows": ["implement", "route", "fix-pr"],
      "reviews": [{ "paths": ["app/**"], "run": ["code"] }],
      "limits": { "minutesPerRun": 60, "maxRuns": 2, "pauseAtQuotaPercent": 80 }
    }

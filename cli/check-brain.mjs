@@ -103,6 +103,7 @@ for (const name of workflowNames()) {
   if (!["work", "planning"].includes(workflow.kind)) errors.push(`${file} needs "kind": work (it changes code; shown as a dragon) or planning (it decides things; shown as a goblin)`);
   if (!["holding", "main"].includes(workflow.where)) errors.push(`${file} needs "where": holding (a worktree of its own) or main (the repo's main checkout)`);
   if (workflow.trigger && !(Array.isArray(workflow.trigger.labels) && workflow.trigger.labels.length)) errors.push(`${file} has a trigger with no labels`);
+  if (workflow.trigger?.pr && workflow.trigger.pr !== "needs-work") errors.push(`${file} has "pr": "${workflow.trigger.pr}" in its trigger; the only value is needs-work`);
   if (new Set(ids).size !== ids.length) errors.push(`${file} repeats a step id`);
   for (const step of workflow.steps ?? []) {
     const where = `${file} step "${step.id}"`;
@@ -111,6 +112,7 @@ for (const name of workflowNames()) {
     if (step.then && !SCRIPT_NAMES.includes(step.then)) errors.push(`${where} names the script "${step.then}" in "then", which doesn't exist`);
     if (step.skill && !stepSkills.has(step.skill)) errors.push(`${where} names the skill "${step.skill}", which has no skills/${step.skill}/step.json`);
     if (step.onFail && !ids.includes(step.onFail)) errors.push(`${where} goes to "${step.onFail}" on a fail, which isn't a step`);
+    if (step.when && step.when !== "changed") errors.push(`${where} has "when": "${step.when}"; the only value is changed`);
     for (const key of ["human", "only"]) if (step[key] && !["agent-owned", "human-owned"].includes(step[key])) errors.push(`${where} has "${key}": "${step[key]}"; it must be agent-owned or human-owned`);
   }
 }

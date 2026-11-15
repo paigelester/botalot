@@ -24,9 +24,10 @@ test('output that is not a board is refused', () => {
 })
 
 test('what is due is read from the CLI', () => {
-  assert.deepEqual(parseDue([{ workflow: 'route', kind: 'planning', where: 'main', number: 12, title: 'T', url: 'u' }, { workflow: 'implement', number: 5, title: 'B', url: 'v' }, { number: 9 }]), [
+  assert.deepEqual(parseDue([{ workflow: 'route', kind: 'planning', where: 'main', number: 12, title: 'T', url: 'u' }, { workflow: 'implement', number: 5, title: 'B', url: 'v' }, { workflow: 'fix-pr', number: 7, title: 'F', url: 'w', branch: '7-f' }, { number: 9 }]), [
     { workflow: 'route', kind: 'planning', where: 'main', number: 12, title: 'T', url: 'u' },
-    { workflow: 'implement', kind: 'work', where: 'holding', number: 5, title: 'B', url: 'v' }
+    { workflow: 'implement', kind: 'work', where: 'holding', number: 5, title: 'B', url: 'v' },
+    { workflow: 'fix-pr', kind: 'work', where: 'holding', number: 7, title: 'F', url: 'w', branch: '7-f' }
   ])
   assert.deepEqual(parseDue({}), [])
 })

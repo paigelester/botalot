@@ -86,8 +86,10 @@ function createWindow(): void {
  * driver has taken it as far as it can (`rested`: patrol, which counts it as going until then). Rejects with
  * the driver's words when no run could be started at all.
  */
-async function startRunFor(p: Project, due: Pick<Due, 'workflow' | 'where' | 'number' | 'title'>, until: 'begun' | 'rested'): Promise<void> {
-  const cwd = due.where === 'main' ? p.path : (await addWorktree(p.path, issueBranch({ key: String(due.number), title: due.title }), p.worktreeLayout)).path
+async function startRunFor(p: Project, due: Pick<Due, 'workflow' | 'where' | 'number' | 'title' | 'branch'>, until: 'begun' | 'rested'): Promise<void> {
+  // A run on an open pull request goes to the holding of the branch it already has; any other gets one named from its ticket.
+  const branch = due.branch ?? issueBranch({ key: String(due.number), title: due.title })
+  const cwd = due.where === 'main' ? p.path : (await addWorktree(p.path, branch, p.worktreeLayout)).path
   const since = Date.now()
   const begun = (): boolean => runs.list().some((r) => r.ticket === due.number && r.workflow === due.workflow && samePath(r.mainRepo, p.path) && r.startedAt >= since - 5000)
   await new Promise<void>((resolve, reject) => {
