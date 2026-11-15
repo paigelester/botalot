@@ -82,6 +82,16 @@ const rubrics = readdirSync(join(BRAIN, "knowledge", "rubrics")).filter((n) => n
 for (const r of rubrics) if (!stepSkills.has(`review-${r}`)) errors.push(`knowledge/rubrics/${r}.md has no skills/review-${r}/ step skill`);
 for (const s of stepSkills) if (s.startsWith("review-") && !rubrics.includes(s.slice(7))) errors.push(`skills/${s} has no knowledge/rubrics/${s.slice(7)}.md`);
 
+// Knowledge a session may open by itself needs a label saying when to.
+for (const dir of ["fundamentals", "stacks"]) {
+  for (const name of readdirSync(join(BRAIN, "knowledge", dir)).filter((n) => n.endsWith(".md"))) {
+    const file = `knowledge/${dir}/${name}`;
+    const { fields, problems } = parseFrontmatter(file);
+    errors.push(...problems);
+    if (!fields.when) errors.push(`${file} has no \`when:\` label in its frontmatter`);
+  }
+}
+
 // Workflows: each step is a script or a skill that exists, and every jump lands on a step.
 for (const name of workflowNames()) {
   const file = `workflows/${name}.json`;

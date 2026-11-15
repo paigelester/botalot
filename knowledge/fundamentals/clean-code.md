@@ -1,3 +1,7 @@
+---
+when: Writing or restructuring code
+---
+
 # Clean code
 
 - **Names say what a thing is for.** Use the words in the repo's glossary. A name that needs a comment to explain it is the wrong name. No abbreviations a new reader would have to look up.

@@ -76,3 +76,19 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+<!-- BEGIN:botalot-knowledge -->
+
+## How code is written and judged here
+
+Before writing or reviewing code, read each file below whose label fits the task. They are short. This repo's own rules overrule them.
+
+- Making any code change: `knowledge/fundamentals/changes.md`
+- Writing or restructuring code: `knowledge/fundamentals/clean-code.md`
+- Handling errors or checking input: `knowledge/fundamentals/errors.md`
+- Writing or changing tests: `knowledge/fundamentals/testing.md`
+- Writing TypeScript: `knowledge/stacks/typescript.md`
+
+This block is written by `botalot knowledge --write`. Change the rules in botalot, not here.
+
+<!-- END:botalot-knowledge -->

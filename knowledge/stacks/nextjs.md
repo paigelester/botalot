@@ -1,3 +1,7 @@
+---
+when: Working on Next.js pages, components or config
+---
+
 # Next.js
 
 - **Read the installed version's docs first.** Next.js changes between versions and your memory may be out of date. Before writing code, read the relevant guide in `node_modules/next/dist/docs/` and heed deprecation notices. The repo's `AGENTS.md` may say this too; it means it.

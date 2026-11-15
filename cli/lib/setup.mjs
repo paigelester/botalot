@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { stackNames } from "./brain.mjs";
 import { CONTRACT_FILE, checkContract } from "./contract.mjs";
+import { writeKnowledgeIndex } from "./knowledge.mjs";
 import { BRAIN_VERSION } from "./paths.mjs";
 import { syncLabels } from "./tickets.mjs";
 
@@ -59,9 +60,16 @@ export function draftContract(repo) {
   return { contract, notes };
 }
 
+/** One line saying what happened to the knowledge index. */
+export function indexLine({ status, file, why }) {
+  if (status === "skipped") return `No knowledge index was written: ${why}.`;
+  if (status === "unchanged") return `The knowledge index in ${file} is up to date.`;
+  return `${status === "written" ? "Wrote" : "Updated"} the knowledge index in ${file}: sessions here read a rules file only when the task needs it.`;
+}
+
 /**
- * Set a repo up: write a contract when it has none (an existing one is never overwritten), check it, and
- * create the factory's labels on GitHub. Returns the lines to print and whether the repo is ready.
+ * Set a repo up: write a contract when it has none (an existing one is never overwritten), check it,
+ * write the knowledge index into its agent instructions, and create the factory's labels on GitHub. Returns the lines to print and whether the repo is ready.
  */
 export function setupRepo(repo, { labels = true } = {}) {
   const lines = [];
@@ -75,10 +83,12 @@ export function setupRepo(repo, { labels = true } = {}) {
     for (const note of notes) lines.push(`Note: ${note}`);
   }
 
-  const { problems } = checkContract(repo);
+  const { contract, problems } = checkContract(repo);
   let ok = problems.length === 0;
   if (ok) lines.push("The contract passes.");
   else lines.push("The contract does not pass yet:", ...problems.map((p) => `- ${p}`));
+
+  if (ok) lines.push(indexLine(writeKnowledgeIndex(repo, contract)));
 
   if (labels) {
     try {

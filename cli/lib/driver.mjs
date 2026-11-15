@@ -187,6 +187,38 @@ async function needsYou(state, step, { kind, question }) {
 
 // ---------------------------------------------------------------------------------------------- agent steps
 
+/** Stands in for the ticket when a skill is tried out with none. */
+const NO_TICKET = { number: 0, title: "(no ticket: this is a test of the skill)", body: "", comments: [] };
+
+/** What a reviewer is told to look at. */
+function reviewBrief(review, base, files) {
+  return `# What to review\n\nThe \`${review}\` review of these changed files (compare with \`git diff ${base}\`; untracked files are new):\n\n${files.map((f) => `- ${f}`).join("\n")}`;
+}
+
+/**
+ * Try one step skill by itself, outside any workflow: for testing a skill's wording, not for doing work.
+ * It gets the same prompt, knowledge and permissions as in a run, against the repo as it is now, but nothing
+ * around it happens: no ticket is claimed or labelled, nothing is committed, no gate runs. With `dry`, no
+ * agent starts and the prompt it would get is returned instead.
+ */
+export async function trySkill({ cwd, skill: name, ticket: number, dry = false }) {
+  const repo = g.topLevel(cwd);
+  const { contract, problems } = checkContract(repo);
+  if (problems.length) throw new Error(`This repo's contract does not pass:\n${problems.map((p) => `- ${p}`).join("\n")}`);
+  const skill = loadStepSkill(name);
+  const base = g.git(repo, "merge-base", "HEAD", g.defaultRef(repo, contract));
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
+  const state = { id: `skill-${name}-${stamp}`, workflow: "skill", repo, repoName: basename(g.mainCheckout(repo)), ticket: number ?? 0, owner: null, branch: g.currentBranch(repo), base, activeSeconds: 0, rework: null };
+  const step = { id: name };
+  const extra = name.startsWith("review-") ? reviewBrief(name.slice(7), base, g.changedFiles(repo, base)) : "";
+  if (dry) {
+    const ticket = number ? tickets.readTicket(repo, number) : NO_TICKET;
+    return { id: state.id, prompt: stepPrompt({ state, step, skill, contract, ticket, extra }) };
+  }
+  const result = await agentStep(state, step, { contract }, name, extra);
+  return { id: state.id, files: runDir(state.id), ...result };
+}
+
 /** Run a step skill as a fresh agent. Returns the step result plus `output`, the agent's structured answer. */
 async function agentStep(state, step, ctx, skillName, extra = "") {
   const { contract } = ctx;
@@ -198,7 +230,7 @@ async function agentStep(state, step, ctx, skillName, extra = "") {
     }
   }
   const skill = loadStepSkill(skillName);
-  const ticket = tickets.readTicket(state.repo, state.ticket);
+  const ticket = state.ticket ? tickets.readTicket(state.repo, state.ticket) : NO_TICKET;
   const dir = runDir(state.id);
   const attempt = `${step.id}-${skillName}-${Date.now()}`;
   const prompt = stepPrompt({ state, step, skill, contract, ticket, extra });
@@ -227,7 +259,7 @@ async function agentStep(state, step, ctx, skillName, extra = "") {
 
   if (!res.ok) return { needsYou: { kind: "blocked", question: `${res.error}\n\nThe session is \`${res.session ?? "unknown"}\`; reopen it with \`claude --resume ${res.session ?? "<id>"}\`.` } };
   if (res.output.status === "needs-human") return { needsYou: { kind: res.output.kind === "blocked" ? "blocked" : "decision", question: res.output.question ?? "The agent stopped without saying what it needs." } };
-  return { ok: true, output: res.output };
+  return { ok: true, output: res.output, session: res.session };
 }
 
 async function skillStep(state, step, ctx) {
@@ -326,7 +358,7 @@ ${r.output.slice(-2000).trim()}` };
     const findings = [];
     let criteria = [];
     for (const review of picked) {
-      const extra = `# What to review\n\nThe \`${review}\` review of these changed files (compare with \`git diff ${state.base}\`; untracked files are new):\n\n${files.map((f) => `- ${f}`).join("\n")}`;
+      const extra = reviewBrief(review, state.base, files);
       const result = await agentStep(state, step, ctx, `review-${review}`, extra);
       if (!result.ok) return result;
       for (const f of result.output.findings ?? []) findings.push({ ...f, review });

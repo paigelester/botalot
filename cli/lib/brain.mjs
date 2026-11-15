@@ -84,8 +84,17 @@ export function knowledgeFiles(wanted, contract) {
   return files.filter((f) => existsSync(join(BRAIN, f)));
 }
 
+const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
+
+/** A knowledge file's label: the `when:` line of its frontmatter, saying when a session should read it. */
+export function knowledgeLabel(file) {
+  const front = readFileSync(join(BRAIN, file), "utf8").match(FRONTMATTER)?.[1] ?? "";
+  const line = front.split(/\r?\n/).find((l) => l.startsWith("when:"));
+  return line ? line.slice(5).trim() : null;
+}
+
 export function readKnowledge(wanted, contract) {
   return knowledgeFiles(wanted, contract)
-    .map((f) => `<!-- ${f} -->\n${readFileSync(join(BRAIN, f), "utf8").trim()}`)
+    .map((f) => `<!-- ${f} -->\n${readFileSync(join(BRAIN, f), "utf8").replace(FRONTMATTER, "").trim()}`)
     .join("\n\n");
 }

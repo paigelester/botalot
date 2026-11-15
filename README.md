@@ -98,9 +98,27 @@ botalot status [--all] [--json]       Show open runs (or every run)
 botalot stop <run>                    End a run
 botalot verify                        Run the contract's checks on the code as it is now
 botalot labels [--fix] [--prune]      Compare the repo's labels with the factory's ten
-botalot knowledge                     Print the knowledge this repo's contract loads
+botalot knowledge [--index|--write]   Print the knowledge this repo's contract loads; or its index; or write the index
+botalot skill <name> [--ticket <n>]   Try one step skill by itself, to test it. Add --dry to only print its prompt
 botalot list                          Show the workflows, reviews and stacks botalot has
 ```
+
+## Knowledge in ordinary sessions
+
+Inside a run, the driver hands each step the knowledge files it needs. In an ordinary Claude Code session, nothing is loaded up front. Instead `botalot setup` (or `botalot knowledge --write`) puts a short index in the repo's `CLAUDE.md`: one line per knowledge file, with a label saying when to read it. The session opens a file only when the task fits its label.
+
+The index lists the fundamentals and the stacks the contract names. It is only written when botalot is installed inside the repo, so its paths work on every machine. Run `botalot knowledge --write` again after changing the contract's stacks or upgrading botalot.
+
+## Testing a skill
+
+Work goes through workflows. To try one step skill by itself while you are changing it:
+
+```bash
+botalot skill build --ticket 12 --dry    # print the exact prompt the agent would get
+botalot skill review-code --ticket 12    # run it against the repo as it is now
+```
+
+It gets the same prompt, knowledge and permissions as in a run, but nothing around it happens: no ticket is claimed or labelled, nothing is committed, and no gate runs.
 
 ## Run logs
 
@@ -125,7 +143,7 @@ npm run dev          # run the app
 ```
 
 - **A rule I keep repeating:** add it to the right file in `knowledge/`. See `knowledge/README.md`.
-- **A new stack:** add `knowledge/stacks/<name>.md`.
+- **A new stack:** add `knowledge/stacks/<name>.md`, with a `when:` label in its frontmatter.
 - **A new review:** add `knowledge/rubrics/<name>.md` and a `skills/review-<name>/` step skill (`SKILL.md` plus `step.json`).
 - **A new skill:** add `skills/<name>/SKILL.md`. The frontmatter `name` must match the folder. Wrap the `description` in double quotes if it contains `: ` or ` #`.
 - **A new workflow:** add `workflows/<name>.json`. See `workflows/README.md`.

@@ -7,12 +7,13 @@ delete process.env.ELECTRON_RUN_AS_NODE;
 import { BRAIN_VERSION, runsDir } from "../cli/lib/paths.mjs";
 import { knowledgeFiles, readKnowledge, reviewNames, stackNames, workflowNames } from "../cli/lib/brain.mjs";
 import { CONTRACT_FILE, checkContract, readContract } from "../cli/lib/contract.mjs";
-import { continueRun, startRun, stopRun } from "../cli/lib/driver.mjs";
+import { continueRun, startRun, stopRun, trySkill } from "../cli/lib/driver.mjs";
+import { knowledgeIndex, writeKnowledgeIndex } from "../cli/lib/knowledge.mjs";
 import { runShell } from "../cli/lib/exec.mjs";
 import { topLevel, worktreeTree } from "../cli/lib/git.mjs";
 import { OPEN_STATUSES, allStates, isAlive, loadState } from "../cli/lib/runs.mjs";
 import { summary } from "../cli/lib/report.mjs";
-import { setupRepo } from "../cli/lib/setup.mjs";
+import { indexLine, setupRepo } from "../cli/lib/setup.mjs";
 import { syncLabels } from "../cli/lib/tickets.mjs";
 
 const HELP = `botalot ${BRAIN_VERSION}
@@ -26,14 +27,16 @@ const HELP = `botalot ${BRAIN_VERSION}
   botalot stop <run>                    End a run
   botalot verify                        Run the contract's checks on the code as it is now
   botalot labels [--fix] [--prune]      Compare the repo's labels with the factory's ten; create or remove them
-  botalot knowledge [--hook]            Print the knowledge this repo's contract loads
+  botalot knowledge [--index|--write]   Print the knowledge this repo's contract loads; or its index; or write the index
+  botalot skill <name> [--ticket <n>]   Try one step skill by itself, to test it. Nothing is committed or labelled
+                [--dry]                 Print the prompt it would get, without starting an agent
   botalot list                          Show the workflows, reviews and stacks the brain has
 
 Run logs are in ${runsDir()}`;
 
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith("--")));
-const words = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--owner");
+const words = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--owner" && args[i - 1] !== "--ticket");
 const option = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const [command, ...rest] = words;
 
@@ -135,20 +138,25 @@ const commands = {
   },
 
   async knowledge() {
-    // As a SessionStart hook this must never fail or speak when there is nothing to say: a repo without a
-    // contract, or a session the driver itself started (which already has its knowledge in the prompt).
-    const hook = flags.has("--hook");
-    try {
-      if (hook && process.env.BOTALOT_RUN) return;
-      const { contract } = readContract(topLevel(process.cwd()));
-      if (!contract) return hook ? undefined : fail(`This repo has no ${CONTRACT_FILE}.`);
-      const wanted = ["fundamentals", "stacks"];
-      if (!hook) console.log(`Files: ${knowledgeFiles(wanted, contract).join(", ")}\n`);
-      else console.log("How Paige writes and judges code. Follow it for any code you write or review in this repo. The repo's own rules overrule it.\n");
-      console.log(readKnowledge(wanted, contract));
-    } catch (err) {
-      if (!hook) throw err;
-    }
+    const repo = topLevel(process.cwd());
+    const { contract, problems } = readContract(repo);
+    if (!contract) fail(problems.join("\n"));
+    if (flags.has("--write")) return console.log(indexLine(writeKnowledgeIndex(repo, contract)));
+    if (flags.has("--index")) return console.log(knowledgeIndex(repo, contract) ?? "botalot is not installed inside this repo, so there is no index to print.");
+    const wanted = ["fundamentals", "stacks"];
+    console.log(`Files: ${knowledgeFiles(wanted, contract).join(", ")}\n`);
+    console.log(readKnowledge(wanted, contract));
+  },
+
+  async skill() {
+    const ticket = option("--ticket");
+    if (!rest[0] || (ticket !== undefined && !/^\d+$/.test(ticket))) fail("Usage: botalot skill <name> [--ticket <number>] [--dry]");
+    const result = await trySkill({ cwd: process.cwd(), skill: rest[0], ticket: ticket ? Number(ticket) : undefined, dry: flags.has("--dry") });
+    if (result.prompt) return console.log(result.prompt);
+    if (result.ok) console.log(JSON.stringify(result.output, null, 2));
+    else console.log(result.needsYou ? `The skill stopped and asked (${result.needsYou.kind}):\n\n${result.needsYou.question}` : (result.pause ?? "The skill did not finish."));
+    console.log(`\nSession: ${result.session ?? "unknown"}\nPrompt and answer: ${result.files}`);
+    process.exit(result.ok ? 0 : 2);
   },
 
   async list() {

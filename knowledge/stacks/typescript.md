@@ -1,3 +1,7 @@
+---
+when: Writing TypeScript
+---
+
 # TypeScript
 
 - **No `any`.** Use `unknown` for values you haven't checked, and narrow them. Don't silence the compiler with `as`, `!` or `@ts-ignore`; fix the type. A cast is acceptable only at a boundary, straight after a runtime check.

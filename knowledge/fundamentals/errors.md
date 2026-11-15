@@ -1,3 +1,7 @@
+---
+when: Handling errors or checking input
+---
+
 # Errors
 
 - **Fail loudly and early.** Check inputs where they enter the system and stop with a clear message. Don't carry a bad value deeper and fail somewhere unrelated.

@@ -1,3 +1,7 @@
+---
+when: Making any code change
+---
+
 # Making a change
 
 - **Smallest change that meets the ask.** Build what the ticket's criteria need and stop. No extra options, no "while I'm here" refactors, no code for a future that hasn't been asked for.

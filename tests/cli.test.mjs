@@ -34,5 +34,5 @@ test("setup run from the command leaves an existing contract alone and sets the 
   const world = makeWorld();
   const setup = botalot(world.repo, "setup");
   assert.equal(setup.code, 0, setup.stderr);
-  assert.match(setup.stdout, /already exists; left as it is\.\nThe contract passes\.\nLabels set on GitHub/);
+  assert.match(setup.stdout, /already exists; left as it is\.\nThe contract passes\.\nNo knowledge index was written[^\n]*\nLabels set on GitHub/);
 });
