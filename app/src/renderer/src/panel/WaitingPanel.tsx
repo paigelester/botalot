@@ -70,7 +70,8 @@ interface RowProps {
 function WaitingRow({ session, realm, tint, waited, onOpen }: RowProps) {
   const [reply, setReply] = useState('')
   // A background dragon has no terminal of the app's own to type into; its reply goes through attaching.
-  const canReply = !session.backgroundId
+  // A run has none either: it is answered on its ticket or by doing your step, then carried on from its panel.
+  const canReply = !session.backgroundId && !session.run
 
   function send() {
     const text = reply.trim()
@@ -110,7 +111,7 @@ function WaitingRow({ session, realm, tint, waited, onOpen }: RowProps) {
             }}
           />
         ) : (
-          <span className="hint">Background session: open it to reply</span>
+          <span className="hint">{session.run ? 'Run: open it to see what it needs and carry it on' : 'Background session: open it to reply'}</span>
         )}
         {canReply ? (
           <button className="small" onClick={send} disabled={!reply.trim()}>

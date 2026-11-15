@@ -269,9 +269,9 @@ class PlaceholderDragon extends Container {
   }
 }
 
-/** The name under a dragon. */
+/** The name under a dragon: ⚑ and the ticket mark a dragon that stands for a run. */
 function nameText(s: Session): string {
-  return s.name
+  return s.run ? `${s.name} ⚑${s.run.ticket}` : s.name
 }
 
 function lighten(c: number): number {

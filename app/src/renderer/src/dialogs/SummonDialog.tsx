@@ -42,11 +42,14 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [background, setBackground] = useState(false)
+  /** Start a run of the implement workflow on the picked issue, rather than summoning a dragon to talk to. */
+  const [asRun, setAsRun] = useState(false)
 
   const project = projects.find((p) => p.id === projectId)
   const tracker: Tracker['kind'] = project?.tracker?.kind ?? 'none'
   const trackerReady = tracker !== 'none'
   const dragonSlug = slugify(name) || 'dragon'
+  const runIt = asRun && mode === 'new' && naming === 'issue'
 
   useEffect(() => {
     void api.names.random().then(setName)
@@ -99,6 +102,22 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
   async function summon() {
     if (!project) return
     setError(null)
+    if (runIt) {
+      if (!issue) {
+        setError(`Pick a ${TRACKER_NAME[tracker]} issue.`)
+        return
+      }
+      setBusy(true)
+      try {
+        await api.runs.start(project.id, issue)
+        onSummoned()
+      } catch (err) {
+        setError((err as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
     let target: SpawnRequest['target']
     if (mode === 'new') {
       const t = newTarget()
@@ -211,6 +230,18 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
                 <IssuePicker projectId={project.id} tracker={tracker} selected={issue} onSelect={setIssue} onLoaded={setIssuesState} />
               ) : null}
             </label>
+            {naming === 'issue' && trackerReady ? (
+              <label className="radio">
+                <input type="checkbox" checked={asRun} onChange={(e) => setAsRun(e.target.checked)} />
+                <span>
+                  <b>Run the implement workflow</b> — the driver takes the ticket through build, checks, review and pull request
+                  <span className="hint block">
+                    The ticket must be <code>factory:ready</code> with an owner, and the realm needs a contract. One dragon stands for the whole run. On a
+                    human-owned ticket it waits for you to build, then runs the checks and reviews on your work.
+                  </span>
+                </span>
+              </label>
+            ) : null}
             <label className="radio">
               <input type="radio" checked={naming === 'manual'} onChange={() => setNaming('manual')} />
               <span>
@@ -239,6 +270,8 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
           </fieldset>
         ) : null}
 
+        {runIt ? null : (
+          <>
         <label>
           Dragon name
           <span className="row">
@@ -266,6 +299,8 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
             <span className="hint block">Runs as a Claude Code background session (claude --bg). Click it to attach; Slay stops it, Bury removes it.</span>
           </span>
         </label>
+          </>
+        )}
 
         {error ? <div className="error">{error}</div> : null}
 
@@ -274,7 +309,7 @@ export function SummonDialog({ projects, initialProjectId, onClose, onSummoned }
             Cancel
           </button>
           <button className="primary" onClick={() => void summon()} disabled={busy || !project}>
-            {busy ? 'Summoning…' : 'Summon'}
+            {busy ? (runIt ? 'Starting…' : 'Summoning…') : runIt ? 'Start run' : 'Summon'}
           </button>
         </div>
       </div>

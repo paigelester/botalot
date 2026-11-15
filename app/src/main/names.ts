@@ -9,6 +9,14 @@ const NAMES = [
   'Sable', 'Marrowind', 'Ilyndra', 'Grimvale', 'Peregrine', 'Vesper', 'Halcyon', 'Rook'
 ]
 
+/** The same name every time for the same seed: a run dragon keeps its name across restarts. */
+export function nameFor(seed: string): string {
+  // FNV-1a, then fold the high bits down: seeds that differ only near the start must still spread.
+  let h = 0x811c9dc5
+  for (const ch of seed) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0
+  return NAMES[((h ^ (h >>> 16)) >>> 0) % NAMES.length]
+}
+
 export function randomName(taken: Set<string> = new Set()): string {
   const free = NAMES.filter((n) => !taken.has(n))
   const pool = free.length > 0 ? free : NAMES

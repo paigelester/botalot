@@ -25,8 +25,12 @@ A realm's setting that picks up tickets labelled `factory:ready` and `factory:ag
 _Avoid_: Auto-pickup, dispatcher, routine
 
 **Run**:
-One pass of a workflow over a ticket, moved step by step by the driver, not by the app. Shown in the runs panel; each agent step of a run can be opened as a dragon.
+One pass of a workflow over a ticket, moved step by step by the driver, not by the app. Stands on the map as one run dragon for the whole run, and is listed in the runs panel.
 _Avoid_: Job, pipeline, quest
+
+**Run dragon**:
+The dragon that stands for a run, at the run's holding, marked ⚑ with its ticket. It has no terminal: a run's agent steps are headless, so its panel shows the run's steps and activity. Each finished agent step can be opened as an ordinary dragon.
+_Avoid_: Patrol dragon
 
 **Driver**:
 The part of the `botalot` CLI that runs a run's steps, checks its gates and writes its log. The app starts it and reads what it writes.

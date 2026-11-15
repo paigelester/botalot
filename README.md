@@ -124,7 +124,7 @@ It gets the same prompt, knowledge and permissions as in a run, but nothing arou
 
 Every run writes to `~/.botalot/runs/` (set `BOTALOT_HOME` to move it):
 
-- `<run>.jsonl`: the run log. One JSON event per line, appended as things happen: each step's start and end, each agent's session id, duration, cost, tokens, tools and skills used, each check's exit code, each loop and wait. Every line carries the run, repo, ticket and workflow.
+- `<run>.jsonl`: the run log. One JSON event per line, appended as things happen: each step's start and end, each agent's session id, duration, cost, tokens, tools and skills used, what an agent is doing as it does it, each check's exit code, each loop and wait. Every line carries the run, repo, ticket and workflow.
 - `<run>.json`: the run's state, which `botalot next` carries on from.
 - `<run>/`: each agent's prompt and answer, each check's full output, the review findings, the PR body.
 

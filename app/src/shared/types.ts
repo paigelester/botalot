@@ -68,6 +68,11 @@ export interface Session {
    * (working with no activity, or waiting too long), never reported by the agent. Clears on new activity.
    */
   stuck?: string
+  /**
+   * Set on a run dragon: it stands for a whole run on the map, not for one session. It has no terminal of its
+   * own (a run's agent steps are headless); its panel shows the run. Never recorded: the runs folder is the record.
+   */
+  run?: RunView
   /** The pull request for this dragon's branch, when its realm is on GitHub and one exists. */
   pr?: PullRequestInfo
   /** Most recent hook event name, for debugging and the status strip. */
@@ -196,6 +201,11 @@ export interface DragonApi {
   runs: {
     /** Every run the driver knows of, newest first. */
     list(): Promise<RunView[]>
+    /**
+     * Make the ticket's holding and start a run of the implement workflow there. Resolves once the run has
+     * begun; rejects with the driver's words when it could not start (no contract, ticket not ready).
+     */
+    start(projectId: string, issue: Issue): Promise<void>
     /** Carry on a run that is resting (`botalot next`). Resolves once the driver has been started. */
     carryOn(id: string): Promise<void>
     /** End a run, stopping its driver and the agent it is running. */

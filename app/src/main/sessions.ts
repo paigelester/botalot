@@ -6,7 +6,12 @@ import { homedir } from 'os'
 import * as pty from 'node-pty'
 import { UNCLAIMED_REALM, type AgentKind, type Project, type PullRequestInfo, type Session, type SessionState, type SpawnRequest } from '@shared/types'
 import { addWorktree, currentBranch, gitInfo, listWorktrees } from './git'
-import { randomName } from './names'
+import { nameFor, randomName } from './names'
+import { isOpenRun, runDragonState, samePath, type RunView } from '@shared/runs'
+import { configDir } from './config'
+import { stopRun } from './runs'
+import { readFileSync, writeFileSync } from 'fs'
+import { join } from 'path'
 import type { HookEvent } from './hooks'
 import type { RegistryEntry } from './registry'
 import type { BackgroundEntry } from './background'
@@ -14,6 +19,9 @@ import { normalizePath } from './projects'
 import { AGENTS, childEnv, resolveOnPath } from './agents'
 import { loadSessionRecords, saveSessionRecords, type SessionRecord } from './sessionStore'
 import { stuckThresholds, type StuckThresholds } from './config'
+
+/** A finished run's dragon stays on the map this long, so you see how it ended, then leaves by itself. */
+const RUN_LINGER_MS = 12 * 60 * 60_000
 
 const SCROLLBACK_LIMIT = 400_000 // characters kept per session for replay when a panel opens
 const HOOK_AUTHORITY_MS = 4000 // after a hook event, ignore the registry for this long
@@ -67,10 +75,12 @@ export class SessionManager extends EventEmitter {
     const now = Date.now()
     const min = 60_000
     let reason: string | undefined
-    if (s.state === 'waiting' && now - s.stateSince > this.thresholds.waitingMinutes * min) {
+    // A run waiting for you to build a human-owned ticket is not stuck: building takes as long as it takes.
+    if (s.state === 'waiting' && s.run?.status !== 'waiting-human' && now - s.stateSince > this.thresholds.waitingMinutes * min) {
       reason = `Waiting on you for ${duration(now - s.stateSince)}`
-    } else if (s.state === 'working' && !s.wild) {
+    } else if (s.state === 'working' && !s.wild && !s.run) {
       // Wild dragons send no hooks and have no terminal here, so there is nothing to measure activity by.
+      // A run has its own time limit, kept by its driver.
       const activity = l.lastHookAt || l.lastOutputAt || 0
       const quietSince = Math.max(activity, s.stateSince)
       if (now - quietSince > this.thresholds.workingQuietMinutes * min) reason = `No activity for ${duration(now - quietSince)}`
@@ -102,7 +112,8 @@ export class SessionManager extends EventEmitter {
   private persist(): void {
     if (process.env.DRAGON_DEMO) return // fake dragons are never remembered
     // Wild dragons belong to Claude Code's own supervisor; the poller rediscovers them on every launch.
-    const owned = [...this.live.values()].filter((l) => !l.session.wild)
+    // Run dragons are drawn from the driver's runs folder, which is their record.
+    const owned = [...this.live.values()].filter((l) => !l.session.wild && !l.session.run)
     saveSessionRecords(owned.map((l) => this.toRecord(l.session)))
   }
 
@@ -414,6 +425,7 @@ export class SessionManager extends EventEmitter {
     const l = this.live.get(id)
     if (!l) return
     if (l.session.wild) return // not ours to slay
+    if (l.session.run) return stopRun(l.session.run) // the runs poll reports the result
     if (l.session.backgroundId) {
       // The pty, if any, is only an attach client. Stopping the session is Claude Code's job; the poller reports the result.
       const binary = this.resolveBinary('claude')
@@ -440,6 +452,12 @@ export class SessionManager extends EventEmitter {
     const l = this.live.get(id)
     if (!l) return
     if (l.session.wild) return // the poller removes wild dragons when their sessions go
+    if (l.session.run) {
+      // Burying a run's dragon hides it; the run and its log stay in the runs folder and the runs panel.
+      this.buriedRuns.add(l.session.run.id)
+      this.saveBuriedRuns()
+      return this.forget(id)
+    }
     if (l.session.backgroundId) {
       const binary = this.resolveBinary('claude')
       if (binary) await runClaude(binary, ['rm', l.session.backgroundId], existsSync(l.session.cwd) ? l.session.cwd : homedir())
@@ -593,6 +611,73 @@ export class SessionManager extends EventEmitter {
       if (s.claudeSessionId === sid || sid.startsWith(s.backgroundId)) return l
     }
     return undefined
+  }
+
+  // ------------------------------------------------------------- run dragons
+
+  /** Runs whose dragon was buried, so the next poll doesn't raise it again. Kept across restarts. */
+  private buriedRuns = new Set<string>(loadBuriedRuns())
+
+  private saveBuriedRuns(): void {
+    try {
+      writeFileSync(join(configDir(), 'buried-runs.json'), JSON.stringify([...this.buriedRuns].slice(-500)), 'utf8')
+    } catch (err) {
+      console.warn('could not save buried runs', err)
+    }
+  }
+
+  /**
+   * Apply the driver's runs (the runs folder, as RunsWatcher reads it). Each run in a realm is one dragon for
+   * the whole run, at the run's folder: flying while a step works, waiting when it needs you, resting once
+   * done, fallen if it stopped. Each call is the full truth: a run dragon whose run is missing from it leaves.
+   */
+  applyRuns(runs: RunView[], projects: Project[]): void {
+    const seen = new Set<string>()
+    const now = Date.now()
+    for (const run of runs) {
+      const realm = projects.find((p) => samePath(p.path, run.mainRepo))
+      if (!realm || this.buriedRuns.has(run.id)) continue
+      if (!isOpenRun(run) && now - run.updatedAt > RUN_LINGER_MS) continue
+      const id = 'run-' + run.id
+      seen.add(id)
+      const { state, attention } = runDragonState(run)
+      const isWorktree = !samePath(run.cwd, realm.path)
+      let l = this.live.get(id)
+      if (!l) {
+        const session: Session = {
+          id,
+          name: nameFor(run.id),
+          agent: 'claude',
+          projectId: realm.id,
+          cwd: run.cwd,
+          branch: run.branch ?? '',
+          isWorktree,
+          state,
+          stateSince: run.updatedAt || now,
+          attention,
+          run,
+          startedAt: run.startedAt || now
+        }
+        l = { session, proc: null, scrollback: '', lastHookAt: 0, gitTimer: null, idleTimer: null }
+        this.live.set(id, l)
+        if (existsSync(run.cwd)) this.startGitPolling(l)
+        this.publish(l)
+        continue
+      }
+      const s = l.session
+      if (s.state !== state) {
+        s.state = state
+        s.stateSince = now
+      }
+      s.attention = attention
+      s.projectId = realm.id
+      s.cwd = run.cwd
+      s.branch = run.branch ?? s.branch
+      s.isWorktree = isWorktree
+      s.run = run
+      this.publish(l)
+    }
+    for (const [id, l] of this.live) if (l.session.run && !seen.has(id)) this.forget(id)
   }
 
   // ------------------------------------------------------- background dragons
@@ -788,6 +873,15 @@ function duration(ms: number): string {
 }
 
 /** The realm whose folder holds `cwd`. The deepest match wins, so nested realms claim their own sessions. */
+function loadBuriedRuns(): string[] {
+  try {
+    const saved: unknown = JSON.parse(readFileSync(join(configDir(), 'buried-runs.json'), 'utf8'))
+    return Array.isArray(saved) ? saved.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return [] // first run
+  }
+}
+
 function realmFor(cwd: string, projects: Project[]): Project | undefined {
   const target = normalizePath(cwd)
   let best: Project | undefined

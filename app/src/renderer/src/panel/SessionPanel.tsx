@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { UNCLAIMED_REALM, type Project, type Session } from '@shared/types'
 import { api } from '../api'
 import { TerminalView } from './TerminalView'
+import { RunBody } from './RunBody'
 
 interface Props {
   session: Session
@@ -28,6 +29,7 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
   const alive = session.state !== 'dead' && session.state !== 'dormant'
   const wild = !!session.wild
   const background = !!session.backgroundId
+  const run = session.run
   // A background dragon's terminal is a `claude attach` client, open only while its panel is. An owned one
   // that has fallen is not attached, so waking it can start its own terminal.
   const attachable = background && (wild || alive)
@@ -60,6 +62,11 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
           </span>
           <span className={'badge badge-' + session.state}>{STATE_LABEL[session.state]}</span>
           <span className="badge badge-agent">Claude</span>
+          {run ? (
+            <span className="badge badge-run" title={'Run ' + run.id + ': one dragon for the whole run'}>
+              ⚑ #{run.ticket} · {run.workflow}
+            </span>
+          ) : null}
           {wild ? (
             <span className="badge badge-wild" title={'Background session ' + session.backgroundId + ', started outside Botalot'}>
               Wild
@@ -98,6 +105,19 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
             <span className="hint" title={session.cwd}>
               Lives in Claude Code's background
             </span>
+          ) : run && run.status !== 'done' && run.status !== 'stopped' ? (
+            <span className="hint">Stop or carry on below</span>
+          ) : run ? (
+            <button
+              className="small"
+              onClick={() => {
+                void api.sessions.dismiss(session.id)
+                onClose()
+              }}
+              title="Take this dragon off the map. The run and its log stay in the runs panel."
+            >
+              Bury
+            </button>
           ) : alive ? (
             <button
               className="danger small"
@@ -130,7 +150,9 @@ export function SessionPanel({ session, project, wide, onClose, onToggleWide }: 
         {session.attention ? <div className={'attention attention-' + session.state}>{session.attention}</div> : null}
         {wakeError ? <div className="error">{wakeError}</div> : null}
       </header>
-      {session.state === 'dormant' ? (
+      {run ? (
+        <RunBody session={session} run={run} />
+      ) : session.state === 'dormant' ? (
         <div className="dormant-note">
           <p>This dragon was summoned in an earlier run and is sleeping. Wake it to resume where it left off, in the same folder, with the same conversation.</p>
           <p className="hint">

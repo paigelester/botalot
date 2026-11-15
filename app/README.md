@@ -63,6 +63,18 @@ Requires Node 20+, git, and `claude` (Claude Code) on PATH. Windows is the prima
   resting on you; **Stop** ends one. Botalot holds no run logic: it reads the
   driver's run logs in `~/.botalot/runs/`, so runs started from a terminal show
   up too.
+- **Run dragons.** Every run in a realm stands on the map as one dragon for the
+  whole run, at the run's holding, marked ⚑ with its ticket. It flies while a
+  step is working, gets the gold ring when the run needs you (your own build
+  step on a human-owned ticket, a question, a check that keeps failing, or a
+  driver that died), rests once the run is done and falls if it stopped. It
+  counts in "awaiting you", the badge and notifications like any dragon. Its
+  panel has no terminal, because a run's agent steps are headless: it shows the
+  run's steps, a live feed of what the agent and the checks are doing, and
+  **Carry on**, **Stop** and **Summon a dragon here**. A finished run's dragon
+  leaves after 12 hours, or when you bury it; the run stays in the runs panel.
+  To start a run yourself, pick an issue for a new holding in the Summon dialog
+  and tick **Run the implement workflow**.
 - **Patrol.** Switch on Patrol for a realm in the Realms dialog and, every couple
   of minutes while the app runs, it takes the oldest open tickets labelled both
   `factory:ready` and `factory:agent-owned`, makes a holding named from each

@@ -14,7 +14,7 @@ function hex(tint: number): string {
 }
 
 /** What a run's status means, in a few words. */
-function statusText(run: RunView): string {
+export function statusText(run: RunView): string {
   if (run.status === 'running') return run.alive ? `Running: ${run.currentStep ?? 'starting'}` : 'Its driver stopped'
   if (run.status === 'waiting-you') return 'Needs you'
   if (run.status === 'waiting-human') return 'Your turn'
@@ -65,6 +65,19 @@ export function RunsPanel({ runs, projects, onClose }: Props) {
   )
 }
 
+/** A run's steps as a table: each step's outcome, time, weight, sessions, tools and checks. */
+export function RunSteps({ run, onError }: { run: RunView; onError(message: string): void }) {
+  return (
+    <table className="run-steps">
+      <tbody>
+        {run.steps.map((step) => (
+          <StepRows key={step.id} run={run} step={step} onError={onError} />
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 function RunRow({ run, project }: { run: RunView; project?: Project }) {
   const [open, setOpen] = useState(isOpenRun(run))
   const [busy, setBusy] = useState(false)
@@ -106,15 +119,7 @@ function RunRow({ run, project }: { run: RunView; project?: Project }) {
       {isOpenRun(run) && run.waitReason ? <div className="waiting-why">{run.waitReason}</div> : null}
       {run.status === 'stopped' && run.waitReason ? <div className="waiting-why">{run.waitReason}</div> : null}
       {open && isOpenRun(run) && run.waitDetail ? <pre className="run-detail">{run.waitDetail}</pre> : null}
-      {open ? (
-        <table className="run-steps">
-          <tbody>
-            {run.steps.map((step) => (
-              <StepRows key={step.id} run={run} step={step} onError={setError} />
-            ))}
-          </tbody>
-        </table>
-      ) : null}
+      {open ? <RunSteps run={run} onError={setError} /> : null}
       {error ? <div className="waiting-stuck">{error}</div> : null}
       <div className="waiting-actions">
         {run.pr ? (

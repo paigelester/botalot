@@ -56,6 +56,7 @@ function run(ticket: number, over: Partial<RunView> = {}): RunView {
     seconds: 0,
     cost: 0,
     steps: [],
+    activity: [],
     ...over
   }
 }

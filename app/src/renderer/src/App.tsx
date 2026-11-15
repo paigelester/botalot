@@ -167,6 +167,7 @@ export function App() {
         <span>🌙 faded = dormant</span>
         <span>⭕ red ring = stuck</span>
         <span>🌿 green name = wild</span>
+        <span>⚑ = a run</span>
         <span className="spacer" />
         <span>Click a castle to summon there · click a dragon to open its terminal · Esc closes · Ctrl+\ widens</span>
       </footer>

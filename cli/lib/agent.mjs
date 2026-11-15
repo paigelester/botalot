@@ -10,7 +10,7 @@ import { toolCommand } from "./exec.mjs";
  * `permissions` is { edits, tools, bash }: whether file edits are accepted, the tools allowed without asking,
  * and the shell command patterns allowed without asking. Anything else is denied, since nobody is there to ask.
  */
-export function runAgent({ cwd, prompt, schema, permissions, settingsPath, name, runId, timeoutMs, model, mcp = false }) {
+export function runAgent({ cwd, prompt, schema, permissions, settingsPath, name, runId, timeoutMs, model, mcp = false, onActivity }) {
   // Permissions go in a settings file rather than on the command line, so patterns with spaces survive any shell.
   writeFileSync(settingsPath, JSON.stringify({ permissions: agentPermissions(permissions) }, null, 2));
   const args = [
@@ -29,7 +29,7 @@ export function runAgent({ cwd, prompt, schema, permissions, settingsPath, name,
 
   const [program, ...first] = toolCommand("BOTALOT_AGENT_CMD", "claude");
   const started = Date.now();
-  const seen = { session: null, output: null, tools: {}, skills: [], quota: null, result: null, model: null };
+  const seen = { session: null, output: null, tools: {}, skills: [], quota: null, result: null, model: null, onActivity };
 
   return new Promise((resolve) => {
     const child = spawn(program, [...first, ...args], { cwd, env: { ...process.env, BOTALOT_RUN: runId }, windowsHide: true });
@@ -93,6 +93,13 @@ export function agentPermissions({ edits, tools, bash }) {
   };
 }
 
+/** What a tool call was about, in a few words: the file, command or pattern it was given. */
+function toolBrief(input = {}) {
+  if (input.file_path) return String(input.file_path).split(/[\\/]/).slice(-3).join("/");
+  const text = input.command ?? input.pattern ?? input.skill ?? input.description ?? "";
+  return String(text).split("\n")[0].slice(0, 160);
+}
+
 /** Fold one line of the session's stream into what we've seen so far. Lines that aren't JSON are ignored. */
 function readEvent(line, seen) {
   let event;
@@ -105,12 +112,14 @@ function readEvent(line, seen) {
   if (event.type === "assistant") {
     if (event.message?.model) seen.model = event.message.model;
     for (const block of event.message?.content ?? []) {
+      if (block.type === "text" && block.text?.trim()) seen.onActivity?.(block.text.trim().split("\n")[0].slice(0, 200));
       if (block.type !== "tool_use") continue;
       if (block.name === "StructuredOutput") {
         seen.output = block.input;
         continue;
       }
       seen.tools[block.name] = (seen.tools[block.name] ?? 0) + 1;
+      seen.onActivity?.(`${block.name} ${toolBrief(block.input)}`.trim());
       if (block.name === "Skill" && block.input?.skill) seen.skills.push(block.input.skill);
     }
   } else if (event.type === "rate_limit_event") {

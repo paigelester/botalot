@@ -71,7 +71,17 @@ export interface RunView {
   seconds: number
   cost: number
   steps: RunStep[]
+  /** The latest things the run did, oldest first: an agent's tool calls and words, a check starting. */
+  activity: RunActivity[]
 }
+
+export interface RunActivity {
+  step: string
+  text: string
+}
+
+/** How many activity lines a run view keeps. */
+const ACTIVITY_KEPT = 60
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null)
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
@@ -106,6 +116,7 @@ export function buildRunView(stateJson: unknown, events: Record<string, unknown>
   if (!id || !status || typeof s.ticket !== 'number') return null
 
   const steps: RunStep[] = []
+  const activity: RunActivity[] = []
   const stepOf = (stepId: string): RunStep => {
     let step = steps.find((x) => x.id === stepId)
     if (!step) {
@@ -144,6 +155,9 @@ export function buildRunView(stateJson: unknown, events: Record<string, unknown>
       }
       step.agents.push(agent)
       step.cost += agent.cost ?? 0
+    } else if (e.event === 'activity') {
+      const text = str(e.text)
+      if (text) activity.push({ step: stepId, text })
     } else if (e.event === 'check') {
       stepOf(stepId).checks.push({ command: str(e.command) ?? '', exit: num(e.exit), seconds: num(e.seconds) })
     }
@@ -173,7 +187,8 @@ export function buildRunView(stateJson: unknown, events: Record<string, unknown>
     updatedAt: Date.parse(str(s.updatedAt) ?? '') || startedAt,
     seconds: num(s.activeSeconds),
     cost: steps.reduce((sum, step) => sum + step.cost, 0),
-    steps
+    steps,
+    activity: activity.slice(-ACTIVITY_KEPT)
   }
 }
 
@@ -191,6 +206,19 @@ export function isOpenRun(run: Pick<RunView, 'status'>): boolean {
 /** Whether a run needs the human: an answer, their own step, or a carry-on after its driver died. */
 export function runNeedsYou(run: Pick<RunView, 'status' | 'alive'>): boolean {
   return run.status === 'waiting-you' || run.status === 'waiting-human' || (run.status === 'running' && !run.alive)
+}
+
+/** How a run shows as a dragon: flying while a step works, waiting when it needs you, resting when done, fallen when stopped. */
+export function runDragonState(run: RunView): { state: 'working' | 'waiting' | 'idle' | 'dead'; attention: string } {
+  if (run.status === 'running') {
+    return run.alive
+      ? { state: 'working', attention: `Run: ${run.currentStep ?? 'starting'}` }
+      : { state: 'waiting', attention: `Its driver stopped at the "${run.currentStep ?? 'first'}" step. Carry on to resume it.` }
+  }
+  if (run.status === 'waiting-you' || run.status === 'waiting-human') return { state: 'waiting', attention: run.waitReason ?? 'The run needs you' }
+  if (run.status === 'paused-quota') return { state: 'idle', attention: run.waitReason ?? 'Paused until the usage window resets' }
+  if (run.status === 'done') return { state: 'idle', attention: run.pr ? 'Run done: pull request open' : 'Run done' }
+  return { state: 'dead', attention: run.waitReason ?? 'Run stopped' }
 }
 
 /** Seconds as "42s", "3m 05s" or "1h 12m". */

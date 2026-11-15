@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
-import type { PullRequestInfo, SpawnRequest } from '@shared/types'
+import type { Issue, Project, PullRequestInfo, SpawnRequest } from '@shared/types'
 import { parseRateLimits, type Quota } from '@shared/quota'
 import { ProjectStore } from './projects'
 import { HookServer, removeHookPortFile, writeHookPortFile } from './hooks'
@@ -77,6 +77,37 @@ function createWindow(): void {
   }
 }
 
+/**
+ * Make a ticket's holding and start a run of the implement workflow there. Resolves when the run has begun
+ * (`begun`: the Summon dialog, which only needs to know it started) or when its driver has taken it as far as
+ * it can (`rested`: patrol, which counts it as going until then). Rejects with the driver's words when no
+ * run could be started at all.
+ */
+async function startRunFor(p: Project, issue: Issue, until: 'begun' | 'rested'): Promise<void> {
+  const holding = await addWorktree(p.path, issueBranch(issue), p.worktreeLayout)
+  const since = Date.now()
+  const begun = (): boolean => runs.list().some((r) => r.ticket === Number(issue.key) && samePath(r.mainRepo, p.path) && r.startedAt >= since - 5000)
+  await new Promise<void>((resolve, reject) => {
+    let timer: NodeJS.Timeout | null = null
+    const settle = (err?: Error): void => {
+      if (timer) clearInterval(timer)
+      if (err) reject(err)
+      else resolve()
+    }
+    startRun(p.path, holding.path, 'implement', Number(issue.key), (code, output) => {
+      runs.poll()
+      // Exit 1 with a run on record is a run that stopped, which shows on the run itself. With none, nothing started.
+      settle(code === 1 && !begun() ? new Error(output || 'The driver exited without starting a run.') : undefined)
+    })
+    if (until === 'begun') {
+      timer = setInterval(() => {
+        runs.poll()
+        if (begun()) settle()
+      }, 700)
+    } else setTimeout(() => runs.poll(), 2000)
+  })
+}
+
 function registerIpc(): void {
   ipcMain.handle('projects:list', () => projects.visible())
   ipcMain.handle('projects:listAll', () => projects.all())
@@ -129,6 +160,11 @@ function registerIpc(): void {
 
   ipcMain.handle('names:random', () => sessions.randomName())
   ipcMain.handle('runs:list', () => runs.list())
+  ipcMain.handle('runs:start', async (_e, projectId: string, issue: Issue) => {
+    const p = projects.get(projectId)
+    if (!p) throw new Error('Unknown realm')
+    await startRunFor(p, issue, 'begun')
+  })
   ipcMain.handle('runs:carryOn', (_e, id: string) => {
     const run = runs.get(id)
     if (!run) throw new Error('No such run')
@@ -203,7 +239,12 @@ app.whenReady().then(async () => {
   // Factory runs. The demo kingdom is fictional, so it shows runs only from a runs folder made for it (BOTALOT_HOME).
   const demo = !!process.env.DRAGON_DEMO || !!process.env.DRAGON_DEMO_PLAN
   if (!demo || process.env.BOTALOT_HOME) {
-    runs.on('runs', (list) => send('runs:update', list))
+    runs.on('runs', (list) => {
+      send('runs:update', list)
+      sessions.applyRuns(list, projects.all())
+    })
+    // A realm added or removed changes which runs have a castle to stand by.
+    projects.on('changed', () => sessions.applyRuns(runs.list(), projects.all()))
     runs.start()
   }
 
@@ -213,20 +254,7 @@ app.whenReady().then(async () => {
       projects: () => projects.all(),
       runs: () => runs.list(),
       trackerFor: patrolTrackerFor,
-      start: async (p, issue) => {
-        const holding = await addWorktree(p.path, issueBranch(issue), p.worktreeLayout)
-        const since = Date.now()
-        await new Promise<void>((resolve, reject) => {
-          startRun(p.path, holding.path, 'implement', Number(issue.key), (code, output) => {
-            runs.poll()
-            // Exit 1 with a run on record is a run that stopped, which patrol reads off the run. With none, nothing started.
-            const started = runs.list().some((r) => r.ticket === Number(issue.key) && samePath(r.mainRepo, p.path) && r.startedAt >= since - 5000)
-            if (code === 1 && !started) reject(new Error(output || 'The driver exited without starting a run.'))
-            else resolve()
-          })
-          setTimeout(() => runs.poll(), 2000)
-        })
-      },
+      start: (p, issue) => startRunFor(p, issue, 'rested'),
       memory: filePatrolMemory(),
       log: (m) => console.log('[patrol]', m)
     })
@@ -295,6 +323,9 @@ async function runDevHelpers(): Promise<void> {
     }
     if (process.env.DRAGON_DEMO_FOCUS && focusId) setTimeout(() => send('session:focus', focusId), 5000)
   }
+  // DRAGON_FOCUS_ID=<dragon id> opens that dragon's panel once the kingdom has settled (used by screenshot tests).
+  const focus = process.env.DRAGON_FOCUS_ID
+  if (focus) setTimeout(() => send('session:focus', focus), 6000)
   // DRAGON_FOCUS_NEW=1 opens the panel for every newly summoned dragon (used by screenshot tests).
   if (process.env.DRAGON_FOCUS_NEW) {
     const seen = new Set<string>()

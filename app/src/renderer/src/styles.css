@@ -784,6 +784,53 @@ button.pill:not(.pill-alert) {
   font-size: 12px;
 }
 
+/* A run dragon's panel body: the run itself, where another dragon has its terminal */
+.badge-run {
+  color: #ffb27a;
+  border-style: dashed;
+}
+.run-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.run-body h3 {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--gold);
+}
+.run-body-head,
+.run-body-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.run-turn {
+  margin: 0;
+  color: var(--ink);
+}
+.run-feed {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  background: var(--panel-2);
+  border-radius: 4px;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+}
+.run-feed-line {
+  overflow-wrap: anywhere;
+}
+.run-feed-step {
+  color: var(--ink-dim);
+}
+
 /* What `botalot setup` printed for a realm, under its row in the Realms dialog */
 .realm-setup {
   margin: 4px 0 0;

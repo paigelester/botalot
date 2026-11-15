@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { buildRunView, formatDuration, isOpenRun, parseRunLog, runNeedsYou, toolSummary } from './runs.ts'
+import { buildRunView, formatDuration, isOpenRun, parseRunLog, runDragonState, runNeedsYou, toolSummary } from './runs.ts'
 
 const state = {
   id: 'site-12-20261115-155153',
@@ -24,6 +24,7 @@ const log = [
   { event: 'step-end', step: 'claim', outcome: 'passed', seconds: 2 },
   { event: 'step-start', step: 'build' },
   { event: 'agent', step: 'build', skill: 'build', session: 'aaa', seconds: 40, cost: 0.2, tokens: { input: 900, output: 50 }, model: 'm', tools: { Edit: 3, Bash: 1 }, skills: [], ok: true },
+  { event: 'activity', step: 'build', text: 'Edit src/a.ts' },
   { event: 'step-end', step: 'build', outcome: 'passed', seconds: 41 },
   { event: 'step-start', step: 'verify' },
   { event: 'check', step: 'verify', command: 'npm test', exit: 1, seconds: 4 },
@@ -60,6 +61,7 @@ test('a run view folds every round of a step together', () => {
   assert.equal(run.seconds, 95)
   assert.equal(run.pr, 'https://github.com/x/site/pull/3')
   assert.equal(toolSummary(build.agents), 'Edit 4 · Bash 1')
+  assert.deepEqual(run.activity, [{ step: 'build', text: 'Edit src/a.ts' }])
 })
 
 test('a resting run says why, and at which step', () => {
@@ -87,6 +89,16 @@ test('files that are not runs, and broken log lines, are ignored', () => {
   assert.equal(buildRunView({ fiveHour: { usedPercent: 10 } }, [], false), null)
   assert.equal(buildRunView(null, [], false), null)
   assert.deepEqual(parseRunLog('{"event":"a"}\n{"event":"b"'), [{ event: 'a' }])
+})
+
+test('a run shows as a dragon: flying, waiting, resting or fallen', () => {
+  const view = (over: object, alive = false) => buildRunView({ ...state, pr: undefined, ...over }, parseRunLog(JSON.stringify({ event: 'step-start', step: 'build' })), alive)!
+  assert.deepEqual(runDragonState(view({ status: 'running' }, true)), { state: 'working', attention: 'Run: build' })
+  assert.equal(runDragonState(view({ status: 'running' })).state, 'waiting', 'a run whose driver died needs you')
+  assert.deepEqual(runDragonState(view({ status: 'waiting-human', wait: { step: 'build', reason: 'Your turn: build for #12.' } })), { state: 'waiting', attention: 'Your turn: build for #12.' })
+  assert.equal(runDragonState(view({ status: 'paused-quota' })).state, 'idle')
+  assert.deepEqual(runDragonState(view({ status: 'done', pr: 'https://x/pull/1' })), { state: 'idle', attention: 'Run done: pull request open' })
+  assert.deepEqual(runDragonState(view({ status: 'stopped', stopped: 'Ticket #12 is closed.' })), { state: 'dead', attention: 'Ticket #12 is closed.' })
 })
 
 test('durations read at a glance', () => {

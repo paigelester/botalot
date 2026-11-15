@@ -43,6 +43,7 @@ test("the run log records each step, the agent's usage and the checks", async ()
   assert.equal(agent.cost, 0.01);
   assert.deepEqual(agent.tools, { Edit: 1 });
   assert.equal(events.find((e) => e.event === "check").command, "node check.mjs");
+  assert.deepEqual(events.filter((e) => e.event === "activity").map((e) => `${e.step}: ${e.text}`), ["build: Edit feature.txt", "verify: $ node check.mjs"], "what is happening is logged as it happens");
   assert.equal(events.at(-1).event, "run-end");
   for (const e of events) assert.ok(e.ts && e.run === state.id && e.repo === "site" && e.ticket === 12, "every line stands alone");
 });

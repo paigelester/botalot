@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { DragonApi, Project, Session, SpawnRequest } from '@shared/types'
+import type { DragonApi, Issue, Project, Session, SpawnRequest } from '@shared/types'
 import type { Quota } from '@shared/quota'
 import type { RunView } from '@shared/runs'
 
@@ -47,6 +47,7 @@ const api: DragonApi = {
   },
   runs: {
     list: () => ipcRenderer.invoke('runs:list'),
+    start: (projectId: string, issue: Issue) => ipcRenderer.invoke('runs:start', projectId, issue),
     carryOn: (id) => ipcRenderer.invoke('runs:carryOn', id),
     stop: (id) => ipcRenderer.invoke('runs:stop', id),
     openSession: (runId, sessionId) => ipcRenderer.invoke('runs:openSession', runId, sessionId),

@@ -252,6 +252,7 @@ async function agentStep(state, step, ctx, skillName, extra = "") {
     timeoutMs: remaining ? remaining * 1000 : undefined,
     model: skill.step.model,
     mcp: contract.mcp === true,
+    onActivity: (text) => logEvent(state, "activity", { step: step.id, skill: skillName, text }),
   });
   writeFileSync(join(dir, `${attempt}.output.json`), JSON.stringify(res, null, 2));
   if (res.quota) writeQuota(res.quota);
@@ -333,6 +334,7 @@ ${r.output.slice(-2000).trim()}` };
     const results = [];
     const failures = [];
     for (const [i, command] of contract.commands.verify.entries()) {
+      logEvent(state, "activity", { step: step.id, text: `$ ${command}` });
       const r = await runShell(command, { cwd: state.repo, timeoutMs: 30 * 60 * 1000 });
       const file = join(dir, `verify-${round}-${i + 1}.log`);
       writeFileSync(file, `$ ${command}\n${r.output}\n(exit ${r.code})\n`);
