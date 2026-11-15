@@ -39,7 +39,7 @@ A failed check or a `must` review finding goes back to build, up to the workflow
 1. **Install the CLI** as a dev dependency, pinned to a release:
 
    ```bash
-   npm install --save-dev github:paigelester/botalot#v1.1.0
+   npm install --save-dev github:paigelester/botalot#v1.2.0
    ```
 
    `npm install` then brings it to any machine or cloud agent that works on the repo, and `npx botalot` runs it. A repo with no `package.json` gets a small one for this.
@@ -55,7 +55,7 @@ A failed check or a `must` review finding goes back to build, up to the workflow
    ```json
    {
      "$schema": "https://raw.githubusercontent.com/paigelester/botalot/main/schemas/contract.schema.json",
-     "botalot": "1.1.0",
+     "botalot": "1.2.0",
      "stacks": ["typescript", "nextjs"],
      "commands": {
        "setup": ["npm install"],
