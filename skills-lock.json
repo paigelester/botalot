@@ -77,19 +77,13 @@
       "source": "paigelester/skills",
       "sourceType": "github",
       "skillPath": "factory/implement-ticket/SKILL.md",
-      "computedHash": "5b65cff3c5d87d454ebd15393a11b37ea9d9297bfcae0575768ec9eb02cd4de9"
+      "computedHash": "dab7888efc1e1f121bab401e79190e67ceed4f0383d7bc3a1a1ad63bf6f3b3d9"
     },
     "improve-codebase-architecture": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "f74b0bf1be26220dd615523fc1c0562567f9c463d9e9b255d4031345ffb37cd3"
-    },
-    "local-review": {
-      "source": "paigelester/skills",
-      "sourceType": "github",
-      "skillPath": "factory/local-review/SKILL.md",
-      "computedHash": "e2c01e05f3054bab5050763b657ee7e6d74c0b7c7938434394b2d6bae62db8db"
     },
     "pr": {
       "source": "mattpocock/skills",
@@ -114,6 +108,12 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/retro/SKILL.md",
       "computedHash": "e63bb774fba4e601edfffc56bbd5c938d76c8faa2dff49456dff3b1e679cd3b6"
+    },
+    "review-implementation": {
+      "source": "paigelester/skills",
+      "sourceType": "github",
+      "skillPath": "factory/review-implementation/SKILL.md",
+      "computedHash": "ef064fb6a57c16765f99a41a9af207bbb644394aa854d66d6dcf1dc4c440c1fd"
     },
     "setup-matt-pocock-skills": {
       "source": "mattpocock/skills",

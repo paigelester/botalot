@@ -128,13 +128,13 @@ Patrol dragons follow the software factory's skills, installed from
 
 - `factory-labels`: the `factory:*` ticket labels and how to move a ticket between them.
 - `implement-ticket`: one agent-owned ticket from `factory:ready` to an open pull request.
-- `local-review`: the independent pre-PR review `implement-ticket` runs in a subagent.
+- `review-implementation`: the independent review of an implementation, by an agent or a developer, that `implement-ticket` runs in a subagent. Use it on a human-owned ticket too, before opening the PR.
 
     npm run skills:update                   # pull the latest skills
     npm run factory:labels -- owner/repo    # create the factory labels in a realm's GitHub repo
 
 To use patrol in another realm, install the same skills there
-(`npx skills add paigelester/skills --skill factory-labels --skill implement-ticket --skill local-review`).
+(`npx skills add paigelester/skills --skill factory-labels --skill implement-ticket --skill review-implementation`).
 
 ## Pixel-art dragons
 
