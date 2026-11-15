@@ -21,7 +21,7 @@ A dragon whose session runs under Claude Code's background supervisor (`claude -
 _Avoid_: Detached dragon, daemon
 
 **Patrol**:
-A realm's setting that picks up issues labelled `ready-for-agent` on its own and summons a dragon for each.
+A realm's setting that picks up tickets labelled `factory:ready` and `factory:agent-owned` on its own and summons a dragon to implement each.
 _Avoid_: Auto-pickup, dispatcher, routine
 
 **Patrol dragon**:

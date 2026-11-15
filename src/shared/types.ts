@@ -34,7 +34,7 @@ export interface Project {
   source: 'discovered' | 'manual'
   /** Issue tracker for this realm. Inferred as github when origin points at github.com, otherwise none. */
   tracker?: Tracker
-  /** Patrol: pick up issues labelled ready-for-agent on its own. Off when absent. */
+  /** Patrol: pick up tickets labelled factory:ready + factory:agent-owned on its own. Off when absent. */
   patrol?: PatrolSettings
 }
 
@@ -51,6 +51,7 @@ export interface PatrolMark {
   issueKey: string
   issueUrl?: string
   /** done = PR opened; retried = died, issue handed back to patrol; human = died twice, handed to a human. */
+  /** done: a PR exists · retried: back to factory:ready · human: flagged factory:agent-blocked. */
   settled?: 'done' | 'retried' | 'human'
 }
 

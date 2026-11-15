@@ -114,14 +114,14 @@ export function RealmsDialog({ onClose }: Props) {
                 </div>
                 {t.kind !== 'none' ? (
                   <div className="realm-patrol">
-                    <label className="radio" title="Every couple of minutes while Botalot runs, take the oldest issue labelled ready-for-agent and summon a background dragon for it">
+                    <label className="radio" title="Every couple of minutes while Botalot runs, take the oldest ticket labelled factory:ready and factory:agent-owned and summon a background dragon to implement it">
                       <input
                         type="checkbox"
                         checked={!!p.patrol?.enabled}
                         onChange={(e) => void patch(p.id, { patrol: { max: 1, ...p.patrol, enabled: e.target.checked } })}
                       />
                       <span>
-                        <b>Patrol</b> — pick up <code>ready-for-agent</code> issues on its own
+                        <b>Patrol</b> — implement <code>factory:ready</code> + <code>factory:agent-owned</code> tickets on its own
                       </span>
                     </label>
                     <span className="realm-patrol-max">

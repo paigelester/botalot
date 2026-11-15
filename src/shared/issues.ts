@@ -44,7 +44,7 @@ export function patrolPrompt(issue: Issue, tracker: Tracker['kind']): string {
   const ref = tracker === 'github' ? `#${issue.key}` : issue.key
   return `Work on ${issueText(issue, tracker)}
 
-You were picked up automatically and are working unattended: nobody is watching this session. This worktree is on branch ${issueBranch(issue)}.
+You were picked up automatically and are working unattended: nobody is watching this session. This worktree is on branch ${issueBranch(issue)}, and Botalot has already moved ${ref} to factory:in-progress.
 
-Implement the issue against its acceptance criteria, following the repository's own instructions (AGENTS.md / CLAUDE.md), including its checks before committing. Commit, push the branch, and open a draft pull request with \`gh pr create --draft\` whose description references ${ref}. If you are blocked on a decision only a human can make, say so plainly and stop.`
+Use the implement-ticket skill on ${ref}, following the repository's own instructions (AGENTS.md / CLAUDE.md). It ends with an open pull request and the ticket at factory:in-review. If you need a decision or access only a human can give, the skill says how to flag the ticket and stop: nobody will answer here, so the ticket comment is where they will see it.`
 }

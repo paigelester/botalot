@@ -2,16 +2,17 @@ import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { Project } from '@shared/types'
 import { configDir } from './config'
-import { githubComment, githubEnsureLabels, githubLabels, githubOldestWithLabel, githubRelabel } from './github'
-import { jiraComment, jiraLabels, jiraOldestWithLabel, jiraRelabel } from './jira'
+import { githubComment, githubEnsureLabels, githubLabels, githubOldestWithLabels, githubRelabel } from './github'
+import { jiraComment, jiraLabels, jiraOldestWithLabels, jiraRelabel } from './jira'
 import { LABEL, type AttemptStore, type PatrolTracker } from './patrol'
 
-/** Colours and descriptions for the labels patrol adds on GitHub. ready-for-agent and ready-for-human already exist in triage. */
+/** The labels patrol uses, created on GitHub when missing. Same colours as the factory-labels skill's create-labels.sh. */
 const GITHUB_LABELS = [
-  { name: LABEL.ready, color: 'D93F0B', description: 'Fully specified, ready for an AFK agent' },
-  { name: LABEL.working, color: 'FBCA04', description: 'A Botalot patrol dragon is working on it' },
-  { name: LABEL.done, color: '0E8A16', description: 'A Botalot patrol dragon opened a pull request' },
-  { name: LABEL.human, color: 'B60205', description: 'Requires human implementation' }
+  { name: LABEL.ready, color: '0E8A16', description: 'Approved to build' },
+  { name: LABEL.agent, color: '006B75', description: 'An agent builds it' },
+  { name: LABEL.working, color: 'FBCA04', description: 'Being built' },
+  { name: LABEL.review, color: '1D76DB', description: 'PR open and under review' },
+  { name: LABEL.blocked, color: 'B60205', description: 'Agent stopped: no access, secret or service' }
 ]
 
 /** The realm's tracker as patrol sees it: GitHub issues through gh, or Jira issues through its REST API. */
@@ -19,7 +20,7 @@ export function patrolTrackerFor(p: Project): PatrolTracker | null {
   const t = p.tracker
   if (t?.kind === 'github') {
     return {
-      oldestReady: () => githubOldestWithLabel(p.path, LABEL.ready),
+      oldestReady: () => githubOldestWithLabels(p.path, [LABEL.ready, LABEL.agent]),
       labels: (key) => githubLabels(p.path, key),
       relabel: (key, remove, add) => githubRelabel(p.path, key, remove, add),
       comment: (key, text) => githubComment(p.path, key, text),
@@ -28,7 +29,7 @@ export function patrolTrackerFor(p: Project): PatrolTracker | null {
   }
   if (t?.kind === 'jira' && t.site && t.projectKey) {
     return {
-      oldestReady: () => jiraOldestWithLabel(t, LABEL.ready),
+      oldestReady: () => jiraOldestWithLabels(t, [LABEL.ready, LABEL.agent]),
       labels: (key) => jiraLabels(t, key),
       relabel: (key, remove, add) => jiraRelabel(t, key, remove, add),
       comment: (key, text) => jiraComment(t, key, text),
