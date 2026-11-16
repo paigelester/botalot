@@ -11,7 +11,11 @@ export const OPEN_STATUSES = ["running", "waiting-human", "waiting-you", "paused
 
 export function newRunId(repo, ticket, now = new Date()) {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
-  return `${basename(repo)}-${ticket}-${stamp}`;
+  const id = `${basename(repo)}-${ticket}-${stamp}`;
+  // Two runs for one ticket inside the same second would share an id, and the second would overwrite the first.
+  let n = 1;
+  while (existsSync(join(runsDir(), `${n === 1 ? id : `${id}-${n}`}.json`))) n++;
+  return n === 1 ? id : `${id}-${n}`;
 }
 
 export const statePath = (id) => join(runsDir(), `${id}.json`);

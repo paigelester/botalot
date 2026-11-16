@@ -114,10 +114,14 @@ test("a pull request with nothing to fix ends the run at once, and one with chec
 test("after three rounds the next one asks first", async () => {
   const pushBack = (n) => ({ output: { status: "done", items: [{ id: "thread-1", verdict: "push-back", reply: `No, round ${n}.` }] } });
   const world = await withPr([1, 2, 3, 4].map(pushBack));
+  const ids = new Set();
   for (const n of [1, 2, 3]) {
     editPr((pr) => (pr.threads = [thread(500 + n, "Please rename this.")]));
-    assert.equal((await fixRun(world)).status, "done");
+    const round = await fixRun(world);
+    assert.equal(round.status, "done");
+    ids.add(round.id);
   }
+  assert.equal(ids.size, 3, "runs started in the same second still get ids of their own");
   editPr((pr) => (pr.threads = [thread(504, "Please rename this.")]));
   const fourth = await fixRun(world);
   assert.equal(fourth.status, "waiting-you");
