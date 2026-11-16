@@ -74,7 +74,7 @@ in-review + agent-owned           fix-pr is due when its PR has a failed check o
 1. **Install the CLI** as a dev dependency, pinned to a release:
 
    ```bash
-   npm install --save-dev github:paigelester/botalot#v1.2.0
+   npm install --save-dev github:paigelester/botalot#v1.3.0
    ```
 
    `npm install` then brings it to any machine or cloud agent that works on the repo, and `npx botalot` runs it. A repo with no `package.json` gets a small one for this.
@@ -90,7 +90,7 @@ in-review + agent-owned           fix-pr is due when its PR has a failed check o
    ```json
    {
      "$schema": "https://raw.githubusercontent.com/paigelester/botalot/main/schemas/contract.schema.json",
-     "botalot": "1.2.0",
+     "botalot": "1.3.0",
      "stacks": ["typescript", "nextjs"],
      "commands": {
        "setup": ["npm install"],
